@@ -1,0 +1,9 @@
+CREATE TABLE IF NOT EXISTS apikey (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  source TEXT NOT NULL,
+  name TEXT NOT NULL,
+  key TEXT NOT NULL,
+  secret TEXT NOT NULL,
+  created_at TEXT,
+  UNIQUE(key, secret)
+);

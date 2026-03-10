@@ -1,0 +1,46 @@
+.shortcuts-layout {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.shortcuts-layout > * {
+  margin: 8px;
+  flex-shrink: 0;
+  flex-grow: 0;
+}
+
+@media only screen and (max-width: 852px) {
+  .shortcuts-layout {
+    width: 696px;
+  }
+}
+
+@media only screen and (max-width: 736px) {
+  .shortcuts-layout {
+    width: 580px;
+  }
+}
+
+@media only screen and (max-width: 620px) {
+  .shortcuts-layout {
+    width: 464px;
+  }
+}
+
+@media only screen and (max-width: 504px) {
+  .shortcuts-layout {
+    width: 348px;
+  }
+}
+
+@media only screen and (max-width: 388px) {
+  .shortcuts-layout {
+    width: 232px;
+  }
+}
+
+@media only screen and (max-width: 272px) {
+  .shortcuts-layout {
+    width: 116px;
+  }
+}
