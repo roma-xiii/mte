@@ -7,7 +7,7 @@ export const ApiKeyCreatePage = () => {
   return (
     <BaseLayout
       header={
-        <HeaderLayout title="ApiKeys Create">
+        <HeaderLayout title="ApiKey Create">
           <ButtonIconBackBrick />
         </HeaderLayout>
       }
