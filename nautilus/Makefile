@@ -1,4 +1,4 @@
-.PHONY: run venv install clean
+.PHONY: run run-dev venv install clean
 
 VENV = .venv
 PYTHON = $(VENV)/bin/python
@@ -11,6 +11,9 @@ install: venv
 
 run:
 	$(PYTHON) websocket_server.py
+
+run-dev:
+	$(PYTHON) websocket_server.py --reload
 
 clean:
 	rm -rf $(VENV) __pycache__ .pytest_cache

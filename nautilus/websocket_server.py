@@ -486,16 +486,19 @@ async def backtest_ws(socket: WebSocket) -> None:
             _current_session.engine_thread.join(timeout=2)
 
 
+def create_app():
+    return Litestar(route_handlers=[backtest_ws])
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--host", type=str, default="127.0.0.1")
+    parser.add_argument("--reload", action="store_true")
     args = parser.parse_args()
 
-    app = Litestar(route_handlers=[backtest_ws])
-
     import uvicorn
-    uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
+    uvicorn.run("websocket_server:create_app", host=args.host, port=args.port, log_level="info", reload=args.reload, factory=True)
 
 
 if __name__ == "__main__":

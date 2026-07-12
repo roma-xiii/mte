@@ -7,4 +7,5 @@ dependencies = [
     "litestar>=2",
     "uvicorn>=0.20",
     "ccxt>=4",
+    "websockets>=16.1",
 ]
