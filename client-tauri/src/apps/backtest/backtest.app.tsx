@@ -13,6 +13,7 @@ export function BacktestApp() {
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
+    let cancelled = false;
     (async () => {
       try {
         unlisten = await initListener();
@@ -21,12 +22,13 @@ export function BacktestApp() {
       } catch (e) {
         console.error('Failed to initialize backtest bridge', e);
       }
-      setInitialized(true);
+      if (!cancelled) setInitialized(true);
     })();
     return () => {
+      cancelled = true;
       unlisten?.();
     };
-  }, [initListener, actions]);
+  }, [initListener]);
 
   const handleStart = useCallback(
     async (config: Record<string, unknown>) => {
@@ -35,6 +37,9 @@ export function BacktestApp() {
         await actions.start(config);
       } catch (e) {
         console.error('Failed to start backtest', e);
+        actions.reset();
+        setStarting(false);
+        return;
       }
       setStarting(false);
     },
@@ -100,6 +105,7 @@ export function BacktestApp() {
           onPause={actions.pause}
           onResume={actions.resume}
           onStop={handleStop}
+          onReset={actions.reset}
         />
       )}
 

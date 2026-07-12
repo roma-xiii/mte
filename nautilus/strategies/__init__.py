@@ -11,13 +11,21 @@ def discover_strategies() -> list[dict]:
     for module_info in pkgutil.iter_modules([str(package_dir)]):
         if module_info.name.startswith("_"):
             continue
-        module = importlib.import_module(f".{module_info.name}", __package__)
+        try:
+            module = importlib.import_module(f".{module_info.name}", __package__)
+        except Exception as e:
+            print(f"[strategies] Failed to import {module_info.name}: {e}")
+            continue
         for attr_name in dir(module):
             attr = getattr(module, attr_name)
             if isinstance(attr, type) and hasattr(attr, "config_schema"):
-                schema = attr.config_schema()
-                if isinstance(schema, dict) and "name" in schema:
-                    strategies.append(schema)
+                try:
+                    schema = attr.config_schema()
+                    if isinstance(schema, dict) and "name" in schema:
+                        strategies.append(schema)
+                except Exception as e:
+                    print(f"[strategies] config_schema error on {attr_name}: {e}")
+    print(f"[strategies] Discovered: {[s['name'] for s in strategies]}")
     return strategies
 
 

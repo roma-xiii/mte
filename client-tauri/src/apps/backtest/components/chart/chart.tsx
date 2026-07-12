@@ -1,9 +1,7 @@
 import { useEffect, useRef } from 'react';
-import { createChart, createSeriesMarkers } from 'lightweight-charts';
+import { createChart, createSeriesMarkers, CandlestickSeries } from 'lightweight-charts';
 import type { ISeriesApi } from 'lightweight-charts';
 import type { BarEvent, EntryEvent } from '../../types';
-
-const CandlestickSeries = { type: 'Candlestick', isBuiltIn: true, defaultOptions: {} } as const;
 
 interface ChartProps {
   bars: BarEvent[];
@@ -15,6 +13,7 @@ export function Chart({ bars, entries, height }: ChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<ReturnType<typeof createChart> | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
+  const markersRef = useRef<any>(null);
   const lastBarCount = useRef(0);
 
   useEffect(() => {
@@ -43,7 +42,7 @@ export function Chart({ bars, entries, height }: ChartProps) {
       height,
     });
 
-    const candleSeries = chart.addSeries(CandlestickSeries as any, {
+    const candleSeries = chart.addSeries(CandlestickSeries, {
       upColor: '#22c55e',
       downColor: '#ef4444',
       borderDownColor: '#ef4444',
@@ -54,6 +53,7 @@ export function Chart({ bars, entries, height }: ChartProps) {
 
     chartRef.current = chart;
     candleSeriesRef.current = candleSeries;
+    markersRef.current = createSeriesMarkers(candleSeries);
 
     const handleResize = () => {
       if (containerRef.current && chartRef.current) {
@@ -69,6 +69,7 @@ export function Chart({ bars, entries, height }: ChartProps) {
       chart.remove();
       chartRef.current = null;
       candleSeriesRef.current = null;
+      markersRef.current = null;
     };
   }, [height]);
 
@@ -78,7 +79,7 @@ export function Chart({ bars, entries, height }: ChartProps) {
 
     const newBars = bars.slice(lastBarCount.current);
     for (const bar of newBars) {
-      const time = Math.floor(new Date(bar.timestamp).getTime() / 1000) as any;
+      const time = Number(bar.timestamp) as any;
       series.update({
         time,
         open: bar.open,
@@ -92,11 +93,9 @@ export function Chart({ bars, entries, height }: ChartProps) {
   }, [bars]);
 
   useEffect(() => {
-    const series = candleSeriesRef.current;
-    if (!series || entries.length === 0) return;
+    if (!markersRef.current || entries.length === 0) return;
 
-    const markers = createSeriesMarkers(series);
-    markers.setMarkers(
+    markersRef.current.setMarkers(
       entries.map((e) => ({
         time: Math.floor(new Date(e.timestamp).getTime() / 1000) as any,
         position:

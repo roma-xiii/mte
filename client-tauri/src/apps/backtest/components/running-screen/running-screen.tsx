@@ -15,10 +15,11 @@ interface RunningScreenProps {
   stats: CompleteEvent['stats'] | null;
   instrument: string;
   timeframe: string;
-  onSpeedChange: (v: number) => void;
+  onSpeedChange: (_v: number) => void;
   onPause: () => void;
   onResume: () => void;
   onStop: () => void;
+  onReset: () => void;
 }
 
 const MIN_RIGHT_WIDTH = 280;
@@ -40,6 +41,7 @@ export function RunningScreen(props: RunningScreenProps) {
     onPause,
     onResume,
     onStop,
+    onReset,
   } = props;
   const [rightWidth, setRightWidth] = useState(DEFAULT_RIGHT_WIDTH);
   const [speed, setSpeed] = useState(1);
@@ -134,6 +136,7 @@ export function RunningScreen(props: RunningScreenProps) {
             onPause={onPause}
             onResume={onResume}
             onStop={onStop}
+            onReset={onReset}
           />
 
           {stats && (

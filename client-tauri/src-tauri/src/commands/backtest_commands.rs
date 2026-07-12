@@ -7,7 +7,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::mpsc;
 use tokio_tungstenite::connect_async;
 
-const WS_URL: &str = "ws://127.0.0.1:8765";
+const WS_URL: &str = "ws://127.0.0.1:8765/ws";
 
 pub struct BacktestBridge {
     ws_tx: Mutex<Option<mpsc::UnboundedSender<String>>>,
@@ -180,4 +180,12 @@ pub fn backtest_get_snapshot(app: tauri::AppHandle) -> Result<Option<String>, St
     let bridge = app.state::<BacktestBridge>();
     let guard = bridge.snapshot.lock().map_err(|e| e.to_string())?;
     Ok(guard.clone())
+}
+
+#[tauri::command]
+pub fn backtest_clear_snapshot(app: tauri::AppHandle) -> Result<(), String> {
+    let bridge = app.state::<BacktestBridge>();
+    let mut guard = bridge.snapshot.lock().map_err(|e| e.to_string())?;
+    *guard = None;
+    Ok(())
 }

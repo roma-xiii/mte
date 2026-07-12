@@ -5,7 +5,7 @@ import type { DataFileInfo } from '../../types';
 interface DataSourcePanelProps {
   dataFiles: DataFileInfo[];
   onOpenDataManager: () => void;
-  onConfigChange: (partial: Record<string, unknown>) => void;
+  onConfigChange: (_partial: Record<string, unknown>) => void;
 }
 
 const EXCHANGES = ['bybit', 'binance'];

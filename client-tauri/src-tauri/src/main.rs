@@ -41,6 +41,7 @@ fn main() {
             commands::backtest_commands::backtest_list_strategies,
             commands::backtest_commands::backtest_delete_data,
             commands::backtest_commands::backtest_get_snapshot,
+            commands::backtest_commands::backtest_clear_snapshot,
         ])
         .run(tauri::generate_context!())
         .expect("Ошибка запуска приложения");

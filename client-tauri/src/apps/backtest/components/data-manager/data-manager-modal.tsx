@@ -6,7 +6,7 @@ interface DataManagerModalProps {
   opened: boolean;
   onClose: () => void;
   dataFiles: DataFileInfo[];
-  onDelete: (filename: string) => void;
+  onDelete: (_filename: string) => void;
   onRefresh: () => void;
 }
 

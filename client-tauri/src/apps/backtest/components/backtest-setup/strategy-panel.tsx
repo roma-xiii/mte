@@ -4,7 +4,7 @@ import type { StrategySchema, StrategyParam } from '../../types';
 
 interface StrategyPanelProps {
   strategies: StrategySchema[];
-  onStart: (config: Record<string, unknown>) => void;
+  onStart: (_config: Record<string, unknown>) => void;
   loading: boolean;
 }
 
@@ -15,7 +15,7 @@ function ParamInput({
 }: {
   param: StrategyParam;
   value: unknown;
-  onChange: (v: unknown) => void;
+  onChange: (_v: unknown) => void;
 }) {
   switch (param.type) {
     case 'int':

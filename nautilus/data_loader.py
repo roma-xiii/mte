@@ -1,3 +1,4 @@
+import warnings
 from decimal import Decimal
 from pathlib import Path
 import re
@@ -5,6 +6,8 @@ import os
 
 import numpy as np
 import pandas as pd
+
+warnings.filterwarnings("ignore", category=pd.errors.ChainedAssignmentError)
 
 from nautilus_trader.model.data import Bar, BarType
 from nautilus_trader.model.identifiers import InstrumentId, Venue
@@ -69,15 +72,23 @@ def load_bars(
     return nautilus_instrument, bar_type, bars
 
 
+_TF_PANDAS = {"m": "min", "h": "h", "d": "D"}
+_TF_NAUTILUS = {"m": "MINUTE", "h": "HOUR", "d": "DAY"}
+
+
 def generate_synthetic_bars(
     n: int = 10_000,
     seed: int = 42,
     instrument_id_str: str = "EUR/USD",
-    timeframe: str = "1-MINUTE",
+    timeframe: str = "1m",
 ) -> tuple:
     rng = np.random.default_rng(seed)
     price = 1.10 + np.cumsum(rng.normal(0, 0.0002, n))
     spread = np.abs(rng.normal(0, 0.0003, n))
+
+    num = timeframe[:-1]
+    unit = timeframe[-1]
+    pandas_freq = f"{num}{_TF_PANDAS[unit]}"
 
     bars_df = pd.DataFrame(
         {
@@ -86,14 +97,16 @@ def generate_synthetic_bars(
             "low": price - spread,
             "close": price + rng.normal(0, 0.00005, n),
         },
-        index=pd.date_range("2024-01-01", periods=n, freq="1min", tz="UTC"),
+        index=pd.date_range(
+            end=pd.Timestamp.now(tz="UTC"), periods=n, freq=pandas_freq, tz="UTC",
+        ),
     )
     bars_df.loc[:, "high"] = bars_df[["open", "high", "close"]].max(axis=1)
     bars_df.loc[:, "low"] = bars_df[["open", "low", "close"]].min(axis=1)
 
     nautilus_instrument = TestInstrumentProvider.default_fx_ccy(instrument_id_str)
     inst_id = str(nautilus_instrument.id)
-    bar_type_str = f"{inst_id}-{timeframe}-LAST-EXTERNAL"
+    bar_type_str = f"{inst_id}-{num}-{_TF_NAUTILUS[unit]}-LAST-EXTERNAL"
     bar_type = BarType.from_str(bar_type_str)
 
     bars = BarDataWrangler(bar_type, nautilus_instrument).process(bars_df)

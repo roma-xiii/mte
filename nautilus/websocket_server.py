@@ -12,6 +12,7 @@ from typing import Any, Optional
 from litestar import Litestar, WebSocket, websocket
 
 from nautilus_trader.backtest.engine import BacktestEngine
+from nautilus_trader.common.component import set_logging_pyo3
 from nautilus_trader.config import BacktestEngineConfig, LoggingConfig
 from nautilus_trader.model.enums import AccountType, OmsType
 from nautilus_trader.model.identifiers import Venue
@@ -20,6 +21,8 @@ from nautilus_trader.model.objects import Money
 from data_loader import list_available_instruments, load_bars, generate_synthetic_bars
 from data_downloader import download_ohlcv
 from strategies import discover_strategies, get_strategy_cls
+
+set_logging_pyo3(True)
 
 
 @dataclass
@@ -189,6 +192,7 @@ class BacktestRunner:
             self.instrument, self.bar_type, self.bars = generate_synthetic_bars(
                 n=self.config.synthetic_bars,
                 instrument_id_str=f"{self.config.instrument[:3]}/{self.config.instrument[3:]}",
+                timeframe=self.config.timeframe,
             )
 
         self.total_bars = len(self.bars)
@@ -196,7 +200,7 @@ class BacktestRunner:
 
     def setup_engine(self):
         self.engine = BacktestEngine(
-            config=BacktestEngineConfig(logging=LoggingConfig(log_level="ERROR")),
+            config=BacktestEngineConfig(logging=LoggingConfig(bypass_logging=True)),
         )
 
         acc_type = AccountType.MARGIN if self.config.account_type == "margin" else AccountType.CASH
@@ -225,6 +229,9 @@ class BacktestRunner:
         self.engine.add_data([self.bars[self.bar_index]])
         self.engine.run(streaming=True)
 
+        bar = self.bars[self.bar_index]
+        self.log("info", f"NEW CANDLE - O:{_to_float(bar.open)} H:{_to_float(bar.high)} L:{_to_float(bar.low)} C:{_to_float(bar.close)}")
+
         account = self.engine.cache.account_for_venue(self.venue)
         bar = self.bars[self.bar_index]
         quote_ccy = self.instrument.quote_currency
@@ -238,7 +245,7 @@ class BacktestRunner:
             "low": _to_float(bar.low),
             "close": _to_float(bar.close),
             "volume": _to_float(bar.volume.as_double()) if hasattr(bar, 'volume') and bar.volume else 0,
-            "timestamp": str(bar.ts_event),
+            "timestamp": str(bar.ts_event // 1_000_000_000),
             "balance": _to_float(account.balance(quote_ccy).total),
         })
 
@@ -288,7 +295,7 @@ class BacktestRunner:
             "instrument": str(self.instrument.id),
             "timeframe": self.config.timeframe,
         })
-        self.log("info", f"Starting backtest: {self.instrument.id} @ {self.config.timeframe}, {self.total_bars} bars")
+        self.log("info", f"TEST START - {self.instrument.id} @ {self.config.timeframe}, {self.total_bars} bars")
 
         try:
             while self.bar_index < self.total_bars and not self.stop_flag.is_set():
@@ -353,7 +360,12 @@ class BacktestRunner:
 
 
 async def send_strategies_list(socket: WebSocket):
-    strategies = discover_strategies()
+    try:
+        strategies = discover_strategies()
+        print(f"[ws] strategies_list: {[s['name'] for s in strategies]}")
+    except Exception as e:
+        print(f"[ws] discover_strategies error: {e}")
+        strategies = []
     await socket.send_text(json.dumps({"type": "strategies_list", "data": strategies}))
 
 
@@ -362,7 +374,7 @@ async def send_data_list(socket: WebSocket):
     await socket.send_text(json.dumps({"type": "data_list", "data": instruments}))
 
 
-async def handle_command(cmd: dict, socket: WebSocket) -> None:
+async def handle_command(cmd: dict, socket: WebSocket, ws_state: dict | None = None) -> None:
     global _current_session
     action = cmd.get("cmd")
 
@@ -373,9 +385,15 @@ async def handle_command(cmd: dict, socket: WebSocket) -> None:
 
             config = RunnerConfig(**cmd.get("config", {}))
             buffer = SessionBuffer()
-            event_q = queue.Queue()
-            cmd_q = queue.Queue()
-            stop_f = threading.Event()
+
+            if ws_state is not None:
+                event_q = ws_state["event_queue"]
+                cmd_q = ws_state["cmd_queue"]
+                stop_f = ws_state["stop_flag"]
+            else:
+                event_q = queue.Queue()
+                cmd_q = queue.Queue()
+                stop_f = threading.Event()
 
             session = SessionState(
                 buffer=buffer,
@@ -420,7 +438,7 @@ async def handle_command(cmd: dict, socket: WebSocket) -> None:
     else:
         await socket.send_text(json.dumps({
             "type": "error",
-            "message": f"Unknown command: {action}",
+            "message": f"Unknown action: {action}",
         }))
 
 
@@ -430,18 +448,18 @@ async def backtest_ws(socket: WebSocket) -> None:
 
     global _current_session
 
+    # Fresh queues and stop_flag for each WS connection (never reuse old session's — it might be set)
+    ws_state: dict = {
+        "cmd_queue": queue.Queue(),
+        "event_queue": queue.Queue(),
+        "stop_flag": threading.Event(),
+    }
+
     with _session_lock:
         if _current_session is not None:
             await socket.send_text(json.dumps(
                 _current_session.buffer.snapshot(), default=str,
             ))
-            cmd_queue = _current_session.cmd_queue
-            event_queue = _current_session.event_queue
-            stop_flag = _current_session.stop_flag
-        else:
-            cmd_queue = queue.Queue()
-            event_queue = queue.Queue()
-            stop_flag = threading.Event()
 
     await send_strategies_list(socket)
     await send_data_list(socket)
@@ -450,34 +468,34 @@ async def backtest_ws(socket: WebSocket) -> None:
 
     async def send_task():
         try:
-            while not stop_flag.is_set():
+            while not ws_state["stop_flag"].is_set():
                 try:
                     event = await loop.run_in_executor(
-                        None, lambda: event_queue.get(timeout=0.1),
+                        None, lambda: ws_state["event_queue"].get(timeout=0.1),
                     )
                     await socket.send_text(json.dumps(event, default=str))
                     if event.get("type") in ("complete", "error"):
-                        stop_flag.set()
+                        ws_state["stop_flag"].set()
                         break
                 except queue.Empty:
                     continue
         except Exception:
-            stop_flag.set()
+            ws_state["stop_flag"].set()
 
     async def recv_task():
         try:
-            while not stop_flag.is_set():
+            while not ws_state["stop_flag"].is_set():
                 try:
                     data = await asyncio.wait_for(socket.receive_text(), timeout=0.1)
                     cmd = json.loads(data)
-                    await handle_command(cmd, socket)
+                    await handle_command(cmd, socket, ws_state)
                 except asyncio.TimeoutError:
                     continue
                 except Exception:
-                    stop_flag.set()
+                    ws_state["stop_flag"].set()
                     break
         except Exception:
-            stop_flag.set()
+            ws_state["stop_flag"].set()
 
     await asyncio.gather(send_task(), recv_task(), return_exceptions=True)
 

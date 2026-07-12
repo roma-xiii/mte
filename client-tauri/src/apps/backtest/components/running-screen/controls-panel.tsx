@@ -4,10 +4,11 @@ interface ControlsPanelProps {
   status: string;
   progress: { current: number; total: number; pct: number } | null;
   speed: number;
-  onSpeedChange: (v: number) => void;
+  onSpeedChange: (_v: number) => void;
   onPause: () => void;
   onResume: () => void;
   onStop: () => void;
+  onReset: () => void;
 }
 
 export function ControlsPanel({
@@ -18,9 +19,11 @@ export function ControlsPanel({
   onPause,
   onResume,
   onStop,
+  onReset,
 }: ControlsPanelProps) {
   const isRunning = status === 'running';
   const isPaused = status === 'paused';
+  const isComplete = status === 'complete';
   const isActive = isRunning || isPaused;
 
   return (
@@ -45,7 +48,11 @@ export function ControlsPanel({
       />
 
       <Group grow>
-        {isRunning ? (
+        {isComplete ? (
+          <Button onClick={onReset} variant="light" color="blue">
+            New Backtest
+          </Button>
+        ) : isRunning ? (
           <Button onClick={onPause} variant="light">
             Pause
           </Button>

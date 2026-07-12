@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import type {
@@ -160,23 +160,43 @@ export function useBacktestStore() {
     return unlisten;
   }, [handleEvent]);
 
-  const actions = {
-    start: useCallback(
-      (config: Record<string, unknown>) => {
+  const actions = useMemo(
+    () => ({
+      start: (config: Record<string, unknown>) => {
         update({ status: 'starting' });
-        return invoke('backtest_start', { config: JSON.stringify(config) });
+        const p = invoke('backtest_start', { config: JSON.stringify(config) });
+        const timeout = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('backtest_start invoke timeout')), 5000)
+        );
+        return Promise.race([p, timeout]);
       },
-      [update]
-    ),
-
-    pause: useCallback(() => invoke('backtest_pause'), []),
-    resume: useCallback(() => invoke('backtest_resume'), []),
-    stop: useCallback(() => invoke('backtest_stop'), []),
-    speed: useCallback((value: number) => invoke('backtest_speed', { value }), []),
-    listData: useCallback(() => invoke('backtest_list_data'), []),
-    listStrategies: useCallback(() => invoke('backtest_list_strategies'), []),
-    deleteData: useCallback((filename: string) => invoke('backtest_delete_data', { filename }), []),
-  };
+      pause: () => invoke('backtest_pause'),
+      resume: () => invoke('backtest_resume'),
+      stop: () => invoke('backtest_stop'),
+      speed: (value: number) => invoke('backtest_speed', { value }),
+      listData: () => invoke('backtest_list_data'),
+      listStrategies: () => invoke('backtest_list_strategies'),
+      deleteData: (filename: string) => invoke('backtest_delete_data', { filename }),
+      reset: () => {
+        invoke('backtest_stop').catch(() => {});
+        invoke('backtest_clear_snapshot').catch(() => {});
+        update({
+          status: 'idle',
+          bars: [],
+          trades: [],
+          entries: [],
+          exits: [],
+          logs: [],
+          progress: null,
+          stats: null,
+          instrument: '',
+          timeframe: '',
+          totalBars: 0,
+        });
+      },
+    }),
+    []
+  );
 
   return { store, initListener, actions };
 }

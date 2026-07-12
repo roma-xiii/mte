@@ -7,7 +7,7 @@ interface BacktestSetupProps {
   strategies: StrategySchema[];
   dataFiles: DataFileInfo[];
   loading: boolean;
-  onStart: (config: Record<string, unknown>) => void;
+  onStart: (_config: Record<string, unknown>) => void;
   onOpenDataManager: () => void;
 }
 
