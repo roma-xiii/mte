@@ -17,6 +17,35 @@ class SMACrossConfig(StrategyConfig, frozen=True):
     order_type: str = "market"
     limit_offset_ticks: int = 5
 
+    @classmethod
+    def config_schema(cls) -> dict:
+        return {
+            "name": "sma_crossover",
+            "label": "SMA Crossover",
+            "params": {
+                "fast_sma_period": {
+                    "type": "int", "label": "Fast SMA Period",
+                    "default": 10, "min": 2, "max": 200,
+                },
+                "slow_sma_period": {
+                    "type": "int", "label": "Slow SMA Period",
+                    "default": 20, "min": 5, "max": 500,
+                },
+                "trade_size": {
+                    "type": "float", "label": "Trade Size (USD)",
+                    "default": 100000.0, "min": 1.0,
+                },
+                "order_type": {
+                    "type": "select", "label": "Order Type",
+                    "options": ["market", "limit"], "default": "market",
+                },
+                "limit_offset_ticks": {
+                    "type": "int", "label": "Limit Offset Ticks",
+                    "default": 5, "min": 1, "max": 100,
+                },
+            },
+        }
+
 
 class SMACross(Strategy):
     def __init__(self, config: SMACrossConfig):

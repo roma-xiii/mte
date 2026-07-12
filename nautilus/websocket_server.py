@@ -12,12 +12,12 @@ from litestar import Litestar, WebSocket, websocket
 
 from nautilus_trader.backtest.engine import BacktestEngine
 from nautilus_trader.config import BacktestEngineConfig, LoggingConfig
-from nautilus_trader.model.currencies import USD
 from nautilus_trader.model.enums import AccountType, OmsType
 from nautilus_trader.model.identifiers import Venue
 from nautilus_trader.model.objects import Money
 
 from data_loader import list_available_instruments, load_bars, generate_synthetic_bars
+from strategies import discover_strategies
 from strategies.sma_crossover import SMACross, SMACrossConfig
 
 
@@ -35,6 +35,7 @@ class RunnerConfig:
     synthetic: bool = False
     synthetic_bars: int = 10000
     speed: float = 0.0
+    starting_balance: float = 1_000_000
     date_from: Optional[str] = None
     date_to: Optional[str] = None
     csv_file: Optional[str] = None
@@ -155,8 +156,8 @@ def run_nautilus(
         venue=venue,
         oms_type=OmsType.NETTING,
         account_type=AccountType.MARGIN,
-        starting_balances=[Money(1_000_000, USD)],
-        base_currency=USD,
+        starting_balances=[Money(Decimal(config.starting_balance), instrument.quote_currency)],
+        base_currency=instrument.quote_currency,
         default_leverage=Decimal(1),
     )
 
@@ -343,23 +344,9 @@ def run_nautilus(
         engine.dispose()
 
 
-STRATEGIES_META = [
-    {
-        "name": "sma_crossover",
-        "label": "SMA Crossover",
-        "params": {
-            "fast_sma_period": {"type": "int", "label": "Fast SMA Period", "default": 10, "min": 2, "max": 200},
-            "slow_sma_period": {"type": "int", "label": "Slow SMA Period", "default": 20, "min": 5, "max": 500},
-            "trade_size": {"type": "float", "label": "Trade Size (USD)", "default": 100000, "min": 1},
-            "order_type": {"type": "select", "label": "Order Type", "options": ["market", "limit"], "default": "market"},
-            "limit_offset_ticks": {"type": "int", "label": "Limit Offset Ticks", "default": 5, "min": 1, "max": 100},
-        },
-    },
-]
-
-
 async def send_strategies_list(socket: WebSocket):
-    await socket.send_text(json.dumps({"type": "strategies_list", "data": STRATEGIES_META}))
+    strategies = discover_strategies()
+    await socket.send_text(json.dumps({"type": "strategies_list", "data": strategies}))
 
 
 async def send_data_list(socket: WebSocket):
