@@ -35,15 +35,19 @@
 - `RunnerConfig`: `strategy_name`, `strategy_params`, `account_type`, `leverage`
 - `account.balance(USD)` → `account.balance(instrument.quote_currency)`
 
-## Впереди
+## Сделано (Phase 2)
 
 ### Phase 2 — Tauri WS Proxy Bridge
-- Cargo.toml: `tokio-tungstenite`, `futures-util`
+- Cargo.toml: `tokio-tungstenite`, `futures-util`, `tokio` (sync, time, macros)
 - `backtest_commands.rs`:
-  - `BacktestBridge` struct (WS sender + snapshot cache)
-  - Commands: start, pause, resume, speed, stop, list_data, delete_data, list_strategies, get_snapshot
-  - WS read-loop → Tauri event `backtest:event`
-- `main.rs`: register bridge + commands
+  - `BacktestBridge` struct: `ws_tx` (mpsc sender) + `snapshot` cache
+  - `init(app_handle)` — spawn WS connect loop с auto-reconnect (5s)
+  - WS read-loop → `app_handle.emit("backtest:event", payload)`
+  - snapshot кешируется при получении
+  - Команды: start, pause, resume, speed, stop, list_data, list_strategies, delete_data, get_snapshot
+- `main.rs`: `.manage(BacktestBridge::new())`, init в setup, все команды зарегистрированы
+
+## Впереди
 
 ### Phase 3–7 — Frontend (React + Mantine)
 - Setup screen: exchange, symbol, tf, dates, pre-loaded data, strategy params, start

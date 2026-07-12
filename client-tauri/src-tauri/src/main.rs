@@ -7,8 +7,12 @@ use tauri::{Builder, Manager, WebviewUrl, WebviewWindowBuilder};
 
 fn main() {
     Builder::default()
+        .manage(commands::backtest_commands::BacktestBridge::new())
         .setup(|app| {
             let app_handle = app.handle();
+
+            commands::backtest_commands::BacktestBridge::init(app_handle.clone());
+
             println!("App data dir: {:?}", app_handle.path().app_data_dir());
             let main_window = WebviewWindowBuilder::new(
                 app,
@@ -28,6 +32,15 @@ fn main() {
             commands::windows_commands::chart_open,
             commands::windows_commands::positions_open,
             commands::backtest_commands::backtest_open,
+            commands::backtest_commands::backtest_start,
+            commands::backtest_commands::backtest_pause,
+            commands::backtest_commands::backtest_resume,
+            commands::backtest_commands::backtest_speed,
+            commands::backtest_commands::backtest_stop,
+            commands::backtest_commands::backtest_list_data,
+            commands::backtest_commands::backtest_list_strategies,
+            commands::backtest_commands::backtest_delete_data,
+            commands::backtest_commands::backtest_get_snapshot,
         ])
         .run(tauri::generate_context!())
         .expect("Ошибка запуска приложения");
