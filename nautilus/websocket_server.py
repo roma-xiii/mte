@@ -6,6 +6,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 from decimal import Decimal
+from pathlib import Path
 from typing import Any, Optional
 
 from litestar import Litestar, WebSocket, websocket
@@ -17,6 +18,7 @@ from nautilus_trader.model.identifiers import Venue
 from nautilus_trader.model.objects import Money
 
 from data_loader import list_available_instruments, load_bars, generate_synthetic_bars
+from data_downloader import download_ohlcv
 from strategies import discover_strategies
 from strategies.sma_crossover import SMACross, SMACrossConfig
 
@@ -120,6 +122,31 @@ def run_nautilus(
     buffer: Optional[SessionBuffer] = None,
 ):
     available = list_available_instruments(config.data_dir)
+
+    csv_path = Path(config.data_dir) / f"{config.instrument}-{config.timeframe}.csv"
+    if not config.synthetic and config.csv_file is None and not csv_path.exists():
+        _emit({"type": "log", "level": "info",
+               "message": f"Downloading {config.instrument} ({config.timeframe}) from {config.exchange}...",
+               "timestamp": time.time()}, event_queue, buffer)
+        try:
+            download_ohlcv(
+                exchange_name=config.exchange,
+                symbol=config.instrument,
+                timeframe=config.timeframe,
+                date_from=config.date_from,
+                date_to=config.date_to,
+                data_dir=config.data_dir,
+            )
+            _emit({"type": "log", "level": "info",
+                   "message": f"Saved to {config.instrument}-{config.timeframe}.csv",
+                   "timestamp": time.time()}, event_queue, buffer)
+            available = list_available_instruments(config.data_dir)
+        except Exception as e:
+            _emit({"type": "error", "message": f"Download failed: {e}"}, event_queue, buffer)
+            _emit({"type": "log", "level": "error",
+                   "message": f"Download failed: {e}",
+                   "timestamp": time.time()}, event_queue, buffer)
+            return
 
     if config.csv_file:
         match = [x for x in available if x["file"] == config.csv_file]
@@ -394,6 +421,18 @@ async def handle_command(cmd: dict, socket: WebSocket) -> None:
 
     elif action == "list_data":
         await send_data_list(socket)
+
+    elif action == "delete_data":
+        filename = cmd.get("filename")
+        if not filename:
+            await socket.send_text(json.dumps({"type": "error", "message": "Missing filename"}))
+        else:
+            path = Path("data") / filename
+            if path.exists():
+                path.unlink()
+                await send_data_list(socket)
+            else:
+                await socket.send_text(json.dumps({"type": "error", "message": f"File not found: {filename}"}))
 
     elif action == "list_strategies":
         await send_strategies_list(socket)

@@ -7,10 +7,10 @@ venv:
 	uv venv --python 3.12 $(VENV)
 
 install: venv
-	uv pip install "nautilus_trader[visualization]" --python $(VENV)
+	uv sync
 
 run:
-	$(PYTHON) backtest.py
+	$(PYTHON) websocket_server.py
 
 clean:
 	rm -rf $(VENV) __pycache__ .pytest_cache

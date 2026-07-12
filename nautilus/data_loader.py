@@ -15,6 +15,15 @@ from nautilus_trader.test_kit.providers import TestInstrumentProvider
 FILE_PATTERN = re.compile(r"^(\w+)-(\d+[smhd])\.csv$")
 
 
+def get_csv_metadata(filepath: Path) -> dict:
+    df = pd.read_csv(filepath, usecols=["timestamp"], parse_dates=["timestamp"])
+    return {
+        "bars": len(df),
+        "date_from": str(df["timestamp"].iloc[0]),
+        "date_to": str(df["timestamp"].iloc[-1]),
+    }
+
+
 def list_available_instruments(data_dir: str) -> list[dict]:
     path = Path(data_dir)
     if not path.exists():
@@ -23,11 +32,17 @@ def list_available_instruments(data_dir: str) -> list[dict]:
     for f in sorted(path.iterdir()):
         m = FILE_PATTERN.match(f.name)
         if m:
-            result.append({
+            entry = {
                 "instrument": m.group(1),
                 "timeframe": m.group(2),
                 "file": f.name,
-            })
+            }
+            try:
+                meta = get_csv_metadata(path / f.name)
+                entry.update(meta)
+            except Exception:
+                pass
+            result.append(entry)
     return result
 
 

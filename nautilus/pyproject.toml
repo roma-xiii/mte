@@ -1,0 +1,10 @@
+[project]
+name = "mte-backtester"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "nautilus_trader[visualization]",
+    "litestar>=2",
+    "uvicorn>=0.20",
+    "ccxt>=4",
+]
