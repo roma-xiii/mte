@@ -40,6 +40,63 @@ class RunnerConfig:
     csv_file: Optional[str] = None
 
 
+class SessionBuffer:
+    def __init__(self):
+        self.bars: list[dict] = []
+        self.trades: list[dict] = []
+        self.entries: list[dict] = []
+        self.exits: list[dict] = []
+        self.logs: list[dict] = []
+        self.ready: Optional[dict] = None
+        self.complete: Optional[dict] = None
+        self.error: Optional[dict] = None
+
+    def add(self, event: dict):
+        t = event.get("type")
+        if t == "bar":
+            self.bars.append(event)
+        elif t == "trade":
+            self.trades.append(event)
+        elif t == "entry":
+            self.entries.append(event)
+        elif t == "exit":
+            self.exits.append(event)
+        elif t == "log":
+            self.logs.append(event)
+        elif t == "ready":
+            self.ready = event
+        elif t == "complete":
+            self.complete = event
+        elif t == "error":
+            self.error = event
+
+    def snapshot(self) -> dict:
+        return {
+            "type": "snapshot",
+            "bars": self.bars,
+            "trades": self.trades,
+            "entries": self.entries,
+            "exits": self.exits,
+            "logs": self.logs[-1000:],
+            "ready": self.ready,
+            "complete": self.complete,
+            "error": self.error,
+        }
+
+
+@dataclass
+class SessionState:
+    buffer: SessionBuffer
+    cmd_queue: queue.Queue
+    event_queue: queue.Queue
+    stop_flag: threading.Event
+    engine_thread: Optional[threading.Thread] = None
+
+
+_current_session: Optional[SessionState] = None
+_session_lock = threading.Lock()
+
+
 def _to_float(value: Any) -> float:
     if isinstance(value, Decimal):
         return float(value)
@@ -48,31 +105,38 @@ def _to_float(value: Any) -> float:
     return float(value)
 
 
+def _emit(event: dict, event_queue: queue.Queue, buffer: Optional[SessionBuffer] = None):
+    event_queue.put(event)
+    if buffer is not None:
+        buffer.add(event)
+
+
 def run_nautilus(
     config: RunnerConfig,
     cmd_queue: queue.Queue,
     event_queue: queue.Queue,
     stop_flag: threading.Event,
+    buffer: Optional[SessionBuffer] = None,
 ):
     available = list_available_instruments(config.data_dir)
 
     if config.csv_file:
         match = [x for x in available if x["file"] == config.csv_file]
         if not match:
-            event_queue.put({"type": "error", "message": f"File {config.csv_file} not found"})
-            event_queue.put({"type": "log", "level": "error", "message": f"File {config.csv_file} not found", "timestamp": time.time()})
+            _emit({"type": "error", "message": f"File {config.csv_file} not found"}, event_queue, buffer)
+            _emit({"type": "log", "level": "error", "message": f"File {config.csv_file} not found", "timestamp": time.time()}, event_queue, buffer)
             return
-        event_queue.put({"type": "log", "level": "info", "message": f"Loading data from {config.csv_file}", "timestamp": time.time()})
+        _emit({"type": "log", "level": "info", "message": f"Loading data from {config.csv_file}", "timestamp": time.time()}, event_queue, buffer)
         instrument, bar_type, bars = load_bars(config.data_dir, match[0]["instrument"], match[0]["timeframe"])
     elif available and not config.synthetic:
         match = [x for x in available if x["instrument"] == config.instrument]
         if not match:
-            event_queue.put({"type": "error", "message": f"Instrument {config.instrument} not found"})
+            _emit({"type": "error", "message": f"Instrument {config.instrument} not found"}, event_queue, buffer)
             return
-        event_queue.put({"type": "log", "level": "info", "message": f"Loading data for {config.instrument} ({config.timeframe})", "timestamp": time.time()})
+        _emit({"type": "log", "level": "info", "message": f"Loading data for {config.instrument} ({config.timeframe})", "timestamp": time.time()}, event_queue, buffer)
         instrument, bar_type, bars = load_bars(config.data_dir, config.instrument, config.timeframe)
     else:
-        event_queue.put({"type": "log", "level": "info", "message": f"Generating {config.synthetic_bars} synthetic bars", "timestamp": time.time()})
+        _emit({"type": "log", "level": "info", "message": f"Generating {config.synthetic_bars} synthetic bars", "timestamp": time.time()}, event_queue, buffer)
         instrument, bar_type, bars = generate_synthetic_bars(
             n=config.synthetic_bars,
             instrument_id_str=f"{config.instrument[:3]}/{config.instrument[3:]}",
@@ -111,19 +175,19 @@ def run_nautilus(
     )
     engine.add_strategy(strategy)
 
-    event_queue.put({
+    _emit({
         "type": "ready",
         "total_bars": total_bars,
         "instrument": str(instrument.id),
         "timeframe": config.timeframe,
-    })
+    }, event_queue, buffer)
 
-    event_queue.put({
+    _emit({
         "type": "log",
         "level": "info",
         "message": f"Starting backtest: {instrument.id} @ {config.timeframe}, {total_bars} bars",
         "timestamp": time.time(),
-    })
+    }, event_queue, buffer)
 
     bar_index = 0
     closed_positions = set()
@@ -137,7 +201,7 @@ def run_nautilus(
         account = engine.cache.account_for_venue(venue)
         bar = bars[bar_index]
 
-        event_queue.put({
+        _emit({
             "type": "bar",
             "index": bar_index,
             "total": total_bars,
@@ -148,18 +212,18 @@ def run_nautilus(
             "volume": _to_float(bar.volume.as_double()) if hasattr(bar, 'volume') and bar.volume else 0,
             "timestamp": str(bar.ts_event),
             "balance": _to_float(account.balance(USD).total),
-        })
+        }, event_queue, buffer)
 
         if strategy.indicators_initialized():
-            event_queue.put({
+            _emit({
                 "type": "sma",
                 "fast": _to_float(strategy.fast_sma.value),
                 "slow": _to_float(strategy.slow_sma.value),
-            })
+            }, event_queue, buffer)
 
         for pos in engine.cache.positions():
             if not pos.is_closed:
-                event_queue.put({
+                _emit({
                     "type": "position",
                     "id": str(pos.id),
                     "side": str(pos.side),
@@ -167,30 +231,30 @@ def run_nautilus(
                     "quantity": _to_float(pos.quantity),
                     "entry": _to_float(pos.avg_px_open),
                     "unrealized_pnl": _to_float(pos.unrealized_pnl(bar.close)),
-                })
+                }, event_queue, buffer)
             elif str(pos.id) not in closed_positions:
                 closed_positions.add(str(pos.id))
                 pnl = _to_float(pos.realized_pnl)
                 entry_px = _to_float(pos.avg_px_open)
                 exit_px = _to_float(pos.avg_px_close)
 
-                event_queue.put({
+                _emit({
                     "type": "entry",
                     "side": str(pos.side),
                     "price": entry_px,
                     "size": _to_float(pos.quantity),
                     "timestamp": str(pos.ts_opened),
-                })
+                }, event_queue, buffer)
 
-                event_queue.put({
+                _emit({
                     "type": "exit",
                     "side": str(pos.side),
                     "price": exit_px,
                     "pnl": pnl,
                     "timestamp": str(pos.ts_closed),
-                })
+                }, event_queue, buffer)
 
-                event_queue.put({
+                _emit({
                     "type": "trade",
                     "id": str(pos.id),
                     "side": str(pos.side),
@@ -201,7 +265,7 @@ def run_nautilus(
                     "pnl": pnl,
                     "entry_time": str(pos.ts_opened),
                     "exit_time": str(pos.ts_closed),
-                })
+                }, event_queue, buffer)
 
     try:
         while bar_index < total_bars and not stop_flag.is_set():
@@ -226,13 +290,13 @@ def run_nautilus(
 
             action = cmd.get("cmd")
             if action == "stop":
-                event_queue.put({"type": "log", "level": "info", "message": "Backtest stopped by user", "timestamp": time.time()})
+                _emit({"type": "log", "level": "info", "message": "Backtest stopped by user", "timestamp": time.time()}, event_queue, buffer)
                 break
             elif action == "next":
                 pass
             elif action == "pause":
-                event_queue.put({"type": "paused"})
-                event_queue.put({"type": "log", "level": "info", "message": "Backtest paused", "timestamp": time.time()})
+                _emit({"type": "paused"}, event_queue, buffer)
+                _emit({"type": "log", "level": "info", "message": "Backtest paused", "timestamp": time.time()}, event_queue, buffer)
                 while not stop_flag.is_set():
                     try:
                         cmd2 = cmd_queue.get(timeout=0.1)
@@ -240,10 +304,10 @@ def run_nautilus(
                         continue
                     a2 = cmd2.get("cmd")
                     if a2 == "resume":
-                        event_queue.put({"type": "log", "level": "info", "message": "Backtest resumed", "timestamp": time.time()})
+                        _emit({"type": "log", "level": "info", "message": "Backtest resumed", "timestamp": time.time()}, event_queue, buffer)
                         break
                     elif a2 == "stop":
-                        event_queue.put({"type": "log", "level": "info", "message": "Backtest stopped by user", "timestamp": time.time()})
+                        _emit({"type": "log", "level": "info", "message": "Backtest stopped by user", "timestamp": time.time()}, event_queue, buffer)
                         return
             elif action == "speed":
                 current_speed = float(cmd.get("value", 0))
@@ -263,19 +327,19 @@ def run_nautilus(
                 "win_rate": str(pnl_usd.get("Win Rate", 0)),
             }
 
-            event_queue.put({
+            _emit({
                 "type": "log",
                 "level": "info",
                 "message": f"Backtest complete: PnL={stats['pnl']}, Trades={stats['total_trades']}, Sharpe={stats['sharpe']}",
                 "timestamp": time.time(),
-            })
+            }, event_queue, buffer)
 
-        event_queue.put({"type": "complete", "stats": stats})
+        _emit({"type": "complete", "stats": stats}, event_queue, buffer)
         engine.dispose()
 
     except Exception as e:
-        event_queue.put({"type": "error", "message": str(e)})
-        event_queue.put({"type": "log", "level": "error", "message": f"Backtest error: {e}", "timestamp": time.time()})
+        _emit({"type": "error", "message": str(e)}, event_queue, buffer)
+        _emit({"type": "log", "level": "error", "message": f"Backtest error: {e}", "timestamp": time.time()}, event_queue, buffer)
         engine.dispose()
 
 
@@ -303,49 +367,80 @@ async def send_data_list(socket: WebSocket):
     await socket.send_text(json.dumps({"type": "data_list", "data": instruments}))
 
 
+async def handle_command(cmd: dict, socket: WebSocket) -> None:
+    global _current_session
+    action = cmd.get("cmd")
+
+    if action == "start":
+        with _session_lock:
+            if _current_session is not None:
+                _current_session.stop_flag.set()
+
+            config = RunnerConfig(**cmd.get("config", {}))
+            buffer = SessionBuffer()
+            event_q = queue.Queue()
+            cmd_q = queue.Queue()
+            stop_f = threading.Event()
+
+            session = SessionState(
+                buffer=buffer,
+                cmd_queue=cmd_q,
+                event_queue=event_q,
+                stop_flag=stop_f,
+            )
+
+            session.engine_thread = threading.Thread(
+                target=run_nautilus,
+                args=(config, cmd_q, event_q, stop_f, buffer),
+                daemon=True,
+            )
+            session.engine_thread.start()
+
+            _current_session = session
+
+    elif action in ("pause", "resume", "next", "speed", "stop"):
+        with _session_lock:
+            if _current_session is not None:
+                _current_session.cmd_queue.put_nowait(cmd)
+                if action == "stop":
+                    _current_session.stop_flag.set()
+
+    elif action == "list_data":
+        await send_data_list(socket)
+
+    elif action == "list_strategies":
+        await send_strategies_list(socket)
+
+    else:
+        await socket.send_text(json.dumps({
+            "type": "error",
+            "message": f"Unknown command: {action}",
+        }))
+
+
 @websocket("/ws")
 async def backtest_ws(socket: WebSocket) -> None:
     await socket.accept()
 
-    cmd_queue: queue.Queue = queue.Queue()
-    event_queue: queue.Queue = queue.Queue()
-    stop_flag = threading.Event()
-    engine_thread: Optional[threading.Thread] = None
+    global _current_session
+
+    with _session_lock:
+        if _current_session is not None:
+            await socket.send_text(json.dumps(
+                _current_session.buffer.snapshot(), default=str,
+            ))
+            cmd_queue = _current_session.cmd_queue
+            event_queue = _current_session.event_queue
+            stop_flag = _current_session.stop_flag
+        else:
+            cmd_queue = queue.Queue()
+            event_queue = queue.Queue()
+            stop_flag = threading.Event()
 
     await send_strategies_list(socket)
     await send_data_list(socket)
 
     loop = asyncio.get_event_loop()
-
-    async def handle_command(cmd: dict):
-        nonlocal engine_thread
-        action = cmd.get("cmd")
-
-        if action == "start" and engine_thread is None:
-            config = RunnerConfig(**cmd.get("config", {}))
-            engine_thread = threading.Thread(
-                target=run_nautilus,
-                args=(config, cmd_queue, event_queue, stop_flag),
-                daemon=True,
-            )
-            engine_thread.start()
-
-        elif action in ("pause", "resume", "next", "speed", "stop"):
-            cmd_queue.put_nowait(cmd)
-            if action == "stop":
-                stop_flag.set()
-
-        elif action == "list_data":
-            await send_data_list(socket)
-
-        elif action == "list_strategies":
-            await send_strategies_list(socket)
-
-        else:
-            await socket.send_text(json.dumps({
-                "type": "error",
-                "message": f"Unknown command: {action}",
-            }))
 
     async def send_task():
         try:
@@ -369,7 +464,7 @@ async def backtest_ws(socket: WebSocket) -> None:
                 try:
                     data = await asyncio.wait_for(socket.receive_text(), timeout=0.1)
                     cmd = json.loads(data)
-                    await handle_command(cmd)
+                    await handle_command(cmd, socket)
                 except asyncio.TimeoutError:
                     continue
                 except Exception:
@@ -380,8 +475,9 @@ async def backtest_ws(socket: WebSocket) -> None:
 
     await asyncio.gather(send_task(), recv_task(), return_exceptions=True)
 
-    if engine_thread:
-        engine_thread.join(timeout=2)
+    with _session_lock:
+        if _current_session is not None and _current_session.engine_thread:
+            _current_session.engine_thread.join(timeout=2)
 
 
 def main():
