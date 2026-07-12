@@ -20,6 +20,9 @@ export const HomeApp = () => {
       <Button size="xl" variant="filled" onClick={() => invoke('apikeys_open')}>
         ApiKeys
       </Button>
+      <Button size="xl" variant="filled" color="teal" onClick={() => invoke('backtest_open')}>
+        Backtest
+      </Button>
     </Stack>
   );
 };

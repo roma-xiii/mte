@@ -1,0 +1,85 @@
+from decimal import Decimal
+from pathlib import Path
+import re
+import os
+
+import numpy as np
+import pandas as pd
+
+from nautilus_trader.model.data import Bar, BarType
+from nautilus_trader.model.identifiers import InstrumentId, Venue
+from nautilus_trader.persistence.wranglers import BarDataWrangler
+from nautilus_trader.test_kit.providers import TestInstrumentProvider
+
+
+FILE_PATTERN = re.compile(r"^(\w+)-(\d+[smhd])\.csv$")
+
+
+def list_available_instruments(data_dir: str) -> list[dict]:
+    path = Path(data_dir)
+    if not path.exists():
+        return []
+    result = []
+    for f in sorted(path.iterdir()):
+        m = FILE_PATTERN.match(f.name)
+        if m:
+            result.append({
+                "instrument": m.group(1),
+                "timeframe": m.group(2),
+                "file": f.name,
+            })
+    return result
+
+
+def load_bars(
+    data_dir: str,
+    instrument: str,
+    timeframe: str,
+) -> tuple:
+    path = Path(data_dir) / f"{instrument}-{timeframe}.csv"
+    df = pd.read_csv(path, parse_dates=["timestamp"], index_col="timestamp")
+    df = df.sort_index()
+    if df.tz is None:
+        df.index = df.index.tz_localize("UTC")
+
+    instrument_id = InstrumentId(f"{instrument}.SIM")
+    venue = Venue("SIM")
+    nautilus_instrument = TestInstrumentProvider.default_fx_ccy(
+        f"{instrument[:3]}/{instrument[3:]}"
+    )
+    bar_type_str = f"{instrument}.SIM-{timeframe.upper()}-LAST-EXTERNAL"
+    bar_type = BarType.from_str(bar_type_str)
+
+    bars = BarDataWrangler(bar_type, nautilus_instrument).process(df)
+    return nautilus_instrument, bar_type, bars
+
+
+def generate_synthetic_bars(
+    n: int = 10_000,
+    seed: int = 42,
+    instrument_id_str: str = "EUR/USD",
+    timeframe: str = "1-MINUTE",
+) -> tuple:
+    rng = np.random.default_rng(seed)
+    price = 1.10 + np.cumsum(rng.normal(0, 0.0002, n))
+    spread = np.abs(rng.normal(0, 0.0003, n))
+
+    bars_df = pd.DataFrame(
+        {
+            "open": price,
+            "high": price + spread,
+            "low": price - spread,
+            "close": price + rng.normal(0, 0.00005, n),
+        },
+        index=pd.date_range("2024-01-01", periods=n, freq="1min", tz="UTC"),
+    )
+    bars_df.loc[:, "high"] = bars_df[["open", "high", "close"]].max(axis=1)
+    bars_df.loc[:, "low"] = bars_df[["open", "low", "close"]].min(axis=1)
+
+    nautilus_instrument = TestInstrumentProvider.default_fx_ccy(instrument_id_str)
+    inst_id = str(nautilus_instrument.id)
+    bar_type_str = f"{inst_id}-{timeframe}-LAST-EXTERNAL"
+    bar_type = BarType.from_str(bar_type_str)
+
+    bars = BarDataWrangler(bar_type, nautilus_instrument).process(bars_df)
+    return nautilus_instrument, bar_type, bars
