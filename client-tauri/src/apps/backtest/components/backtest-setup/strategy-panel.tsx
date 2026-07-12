@@ -102,15 +102,11 @@ export function StrategyPanel({ strategies, onStart, loading }: StrategyPanelPro
 
   const handleStart = () => {
     onStart({
-      exchange: 'bybit',
-      timeframe: '1m',
       strategy_name: selectedStrategy,
       strategy_params: params,
       starting_balance: startBalance,
       account_type: accountType,
       leverage,
-      synthetic: true,
-      synthetic_bars: 2000,
     });
   };
 

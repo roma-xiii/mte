@@ -58,12 +58,8 @@ export function BacktestApp() {
     [actions]
   );
 
-  const showSetup = store.status === 'idle' || store.status === 'error';
-  const showRunning =
-    store.status === 'starting' ||
-    store.status === 'running' ||
-    store.status === 'paused' ||
-    store.status === 'complete';
+  const showSetup = store.status === 'idle';
+  const showRunning = store.status !== 'idle';
 
   if (!initialized) {
     return (
@@ -96,11 +92,13 @@ export function BacktestApp() {
           entries={store.entries}
           logs={store.logs}
           trades={store.trades}
+          openPositions={store.openPositions}
           status={store.status}
           progress={store.progress}
           stats={store.stats}
           instrument={store.instrument}
           timeframe={store.timeframe}
+          errorMessage={store.errorMessage}
           onSpeedChange={actions.speed}
           onPause={actions.pause}
           onResume={actions.resume}

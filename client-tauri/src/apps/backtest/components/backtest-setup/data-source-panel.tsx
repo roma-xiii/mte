@@ -1,45 +1,22 @@
-import { useState } from 'react';
-import { Select, TextInput, Stack, Radio, Group, Text, Button } from '@mantine/core';
-import type { DataFileInfo } from '../../types';
+import { Stack, Select, TextInput, Radio, Group, Text, Button } from '@mantine/core';
+import type { DataFileInfo, DataConfig } from '../../types';
 
 interface DataSourcePanelProps {
+  value: DataConfig;
+  onChange: (_next: DataConfig) => void;
   dataFiles: DataFileInfo[];
   onOpenDataManager: () => void;
-  onConfigChange: (_partial: Record<string, unknown>) => void;
 }
 
 const EXCHANGES = ['bybit', 'binance'];
 const TIMEFRAMES = ['1m', '5m', '15m', '30m', '1h', '4h', '1d'];
 
 export function DataSourcePanel({
+  value,
+  onChange,
   dataFiles,
   onOpenDataManager,
-  onConfigChange,
 }: DataSourcePanelProps) {
-  const [mode, setMode] = useState<'live' | 'csv'>('live');
-  const [exchange, setExchange] = useState('bybit');
-  const [symbol, setSymbol] = useState('BTCUSDT');
-  const [timeframe, setTimeframe] = useState('1m');
-  const [dateMode, setDateMode] = useState<'dates' | 'bars'>('dates');
-  const [dateFrom, setDateFrom] = useState('2024-01-01');
-  const [dateTo, setDateTo] = useState('2024-06-01');
-  const [barCount, setBarCount] = useState(5000);
-  const [selectedCsv, setSelectedCsv] = useState<string | null>(null);
-
-  const handleModeChange = (v: string) => {
-    setMode(v as 'live' | 'csv');
-    if (v === 'csv') {
-      onConfigChange({ csv_file: selectedCsv, synthetic: false });
-    }
-  };
-
-  const handleCsvChange = (v: string | null) => {
-    setSelectedCsv(v);
-    if (v) {
-      onConfigChange({ csv_file: v, synthetic: false });
-    }
-  };
-
   const csvOptions = dataFiles.map((f) => ({
     value: f.file,
     label: `${f.file}${f.bars ? ` (${f.bars.toLocaleString()} bars)` : ''}`,
@@ -47,78 +24,67 @@ export function DataSourcePanel({
 
   return (
     <Stack gap="sm">
-      <Radio.Group value={mode} onChange={handleModeChange} label="Data source">
+      <Radio.Group
+        value={value.mode}
+        onChange={(v) => onChange({ ...value, mode: v as 'live' | 'csv' })}
+        label="Data source"
+      >
         <Group mt="xs">
-          <Radio value="live" label="Download from exchange" />
+          <Radio value="live" label="Market data" />
           <Radio value="csv" label="Use saved data" />
         </Group>
       </Radio.Group>
 
-      {mode === 'live' ? (
+      {value.mode === 'live' ? (
         <>
           <Select
             label="Exchange"
             data={EXCHANGES}
-            value={exchange}
-            onChange={(v) => {
-              setExchange(v || 'bybit');
-              onConfigChange({ exchange: v });
-            }}
+            value={value.exchange}
+            onChange={(v) => onChange({ ...value, exchange: v || 'bybit' })}
           />
           <TextInput
             label="Symbol"
-            placeholder="BTCUSDT"
-            value={symbol}
-            onChange={(e) => {
-              setSymbol(e.currentTarget.value);
-              onConfigChange({ instrument: e.currentTarget.value });
-            }}
+            placeholder="EURUSD"
+            value={value.instrument}
+            onChange={(e) => onChange({ ...value, instrument: e.currentTarget.value })}
           />
           <Select
             label="Timeframe"
             data={TIMEFRAMES}
-            value={timeframe}
-            onChange={(v) => {
-              setTimeframe(v || '1m');
-              onConfigChange({ timeframe: v });
-            }}
+            value={value.timeframe}
+            onChange={(v) => onChange({ ...value, timeframe: v || '1m' })}
           />
-          <Radio.Group value={dateMode} onChange={(v) => setDateMode(v as 'dates' | 'bars')}>
+          <Radio.Group
+            value={value.dateMode}
+            onChange={(v) => onChange({ ...value, dateMode: v as 'dates' | 'bars' })}
+          >
             <Group mt="xs">
-              <Radio value="dates" label="By dates" />
+              <Radio value="dates" label="By dates (download)" />
               <Radio value="bars" label="By bar count" />
             </Group>
           </Radio.Group>
-          {dateMode === 'dates' ? (
+          {value.dateMode === 'dates' ? (
             <Group grow>
               <TextInput
                 label="Date from"
                 type="date"
-                value={dateFrom}
-                onChange={(e) => {
-                  setDateFrom(e.currentTarget.value);
-                  onConfigChange({ date_from: e.currentTarget.value });
-                }}
+                value={value.dateFrom}
+                onChange={(e) => onChange({ ...value, dateFrom: e.currentTarget.value })}
               />
               <TextInput
                 label="Date to"
                 type="date"
-                value={dateTo}
-                onChange={(e) => {
-                  setDateTo(e.currentTarget.value);
-                  onConfigChange({ date_to: e.currentTarget.value });
-                }}
+                value={value.dateTo}
+                onChange={(e) => onChange({ ...value, dateTo: e.currentTarget.value })}
               />
             </Group>
           ) : (
             <TextInput
               label="Bar count"
               type="number"
-              value={barCount}
-              onChange={(e) => {
-                setBarCount(Number(e.currentTarget.value));
-                onConfigChange({ synthetic_bars: Number(e.currentTarget.value) });
-              }}
+              value={value.barCount}
+              onChange={(e) => onChange({ ...value, barCount: Number(e.currentTarget.value) })}
             />
           )}
         </>
@@ -128,8 +94,8 @@ export function DataSourcePanel({
             label="Saved data file"
             placeholder="Select a CSV file..."
             data={csvOptions}
-            value={selectedCsv}
-            onChange={handleCsvChange}
+            value={value.csvFile}
+            onChange={(v) => onChange({ ...value, csvFile: v })}
             searchable
             nothingFoundMessage="No data files"
             clearable
@@ -137,9 +103,9 @@ export function DataSourcePanel({
           <Button variant="subtle" size="xs" onClick={onOpenDataManager}>
             Manage data files...
           </Button>
-          {selectedCsv && (
+          {value.csvFile && (
             <Text size="xs" c="dimmed">
-              {(dataFiles.find((f) => f.file === selectedCsv)?.bars || 0).toLocaleString()} bars
+              {(dataFiles.find((f) => f.file === value.csvFile)?.bars || 0).toLocaleString()} bars
               available
             </Text>
           )}

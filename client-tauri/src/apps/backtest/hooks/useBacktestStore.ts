@@ -12,6 +12,7 @@ import type {
   StrategySchema,
   DataFileInfo,
   CompleteEvent,
+  PositionOpenedEvent,
 } from '../types';
 
 export interface BacktestStore {
@@ -23,11 +24,13 @@ export interface BacktestStore {
   entries: EntryEvent[];
   exits: ExitEvent[];
   logs: LogEvent[];
+  openPositions: PositionOpenedEvent[];
   progress: { current: number; total: number; pct: number } | null;
   stats: CompleteEvent['stats'] | null;
   instrument: string;
   timeframe: string;
   totalBars: number;
+  errorMessage: string | null;
 }
 
 export function useBacktestStore() {
@@ -40,11 +43,13 @@ export function useBacktestStore() {
     entries: [],
     exits: [],
     logs: [],
+    openPositions: [],
     progress: null,
     stats: null,
     instrument: '',
     timeframe: '',
     totalBars: 0,
+    errorMessage: null,
   });
 
   const storeRef = useRef(store);
@@ -78,8 +83,10 @@ export function useBacktestStore() {
             logs: [],
             entries: [],
             exits: [],
+            openPositions: [],
             progress: null,
             stats: null,
+            errorMessage: null,
           });
           break;
         case 'bar':
@@ -96,6 +103,9 @@ export function useBacktestStore() {
           break;
         case 'log':
           update({ logs: [...storeRef.current.logs.slice(-1000), event] });
+          break;
+        case 'position_opened':
+          update({ openPositions: [...storeRef.current.openPositions, event] });
           break;
         case 'progress':
           update({ progress: event });
@@ -115,7 +125,7 @@ export function useBacktestStore() {
           });
           break;
         case 'error':
-          update({ status: 'error' });
+          update({ status: 'error', errorMessage: (event as any).message || 'Unknown error' });
           break;
         case 'snapshot': {
           const s = event;
@@ -125,11 +135,12 @@ export function useBacktestStore() {
             entries: s.entries || [],
             exits: s.exits || [],
             logs: s.logs || [],
-            status: s.complete ? 'complete' : s.ready ? 'running' : 'idle',
+            status: s.complete ? 'complete' : s.error ? 'error' : s.ready ? 'running' : 'idle',
             stats: s.complete?.stats || null,
             instrument: s.ready?.instrument || '',
             timeframe: s.ready?.timeframe || '',
             totalBars: s.ready?.total_bars || 0,
+            errorMessage: s.error?.message || null,
           });
           break;
         }
@@ -187,11 +198,13 @@ export function useBacktestStore() {
           entries: [],
           exits: [],
           logs: [],
+          openPositions: [],
           progress: null,
           stats: null,
           instrument: '',
           timeframe: '',
           totalBars: 0,
+          errorMessage: null,
         });
       },
     }),

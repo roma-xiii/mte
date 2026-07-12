@@ -3,18 +3,27 @@ import { Group, Paper, Stack, Text, Badge } from '@mantine/core';
 import { Chart } from '../chart/chart';
 import { ControlsPanel } from './controls-panel';
 import { LogTradesPanel } from './log-trades-panel';
-import type { BarEvent, EntryEvent, LogEvent, TradeEvent, CompleteEvent } from '../../types';
+import type {
+  BarEvent,
+  EntryEvent,
+  LogEvent,
+  TradeEvent,
+  CompleteEvent,
+  PositionOpenedEvent,
+} from '../../types';
 
 interface RunningScreenProps {
   bars: BarEvent[];
   entries: EntryEvent[];
   logs: LogEvent[];
   trades: TradeEvent[];
+  openPositions: PositionOpenedEvent[];
   status: string;
   progress: { current: number; total: number; pct: number } | null;
   stats: CompleteEvent['stats'] | null;
   instrument: string;
   timeframe: string;
+  errorMessage: string | null;
   onSpeedChange: (_v: number) => void;
   onPause: () => void;
   onResume: () => void;
@@ -32,11 +41,13 @@ export function RunningScreen(props: RunningScreenProps) {
     entries,
     logs,
     trades,
+    openPositions,
     status,
     progress,
     stats,
     instrument,
     timeframe,
+    errorMessage,
     onSpeedChange,
     onPause,
     onResume,
@@ -101,7 +112,12 @@ export function RunningScreen(props: RunningScreenProps) {
       style={{ height: 'calc(100vh - 32px)', width: '100%' }}
     >
       <Paper style={{ flex: 1, minWidth: 0, position: 'relative' }} p="xs">
-        <Chart bars={bars} entries={entries} height={window.innerHeight - 40} />
+        <Chart
+          bars={bars}
+          entries={entries}
+          openPositions={openPositions}
+          height={window.innerHeight - 40}
+        />
       </Paper>
 
       <div
@@ -132,6 +148,7 @@ export function RunningScreen(props: RunningScreenProps) {
             status={status}
             progress={progress}
             speed={speed}
+            errorMessage={errorMessage}
             onSpeedChange={handleSpeedChange}
             onPause={onPause}
             onResume={onResume}

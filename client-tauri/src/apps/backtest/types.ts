@@ -90,6 +90,7 @@ export interface SnapshotEvent {
   logs: LogEvent[];
   ready?: { total_bars: number; instrument: string; timeframe: string };
   complete?: CompleteEvent;
+  error?: { message: string };
 }
 
 export interface DataListEvent {
@@ -100,6 +101,18 @@ export interface DataListEvent {
 export interface StrategiesListEvent {
   type: 'strategies_list';
   data: StrategySchema[];
+}
+
+export interface PositionOpenedEvent {
+  type: 'position_opened';
+  id: string;
+  side: string;
+  instrument_id: string;
+  quantity: number;
+  entry_price: number;
+  timestamp: string;
+  tp_price?: number;
+  sl_price?: number;
 }
 
 export interface StrategyParam {
@@ -139,7 +152,20 @@ export type BacktestEvent =
   | PausedEvent
   | SnapshotEvent
   | DataListEvent
-  | StrategiesListEvent;
+  | StrategiesListEvent
+  | PositionOpenedEvent;
+
+export interface DataConfig {
+  mode: 'live' | 'csv';
+  exchange: string;
+  instrument: string;
+  timeframe: string;
+  dateMode: 'dates' | 'bars';
+  dateFrom: string;
+  dateTo: string;
+  barCount: number;
+  csvFile: string | null;
+}
 
 export type BacktestStatus =
   | 'idle'

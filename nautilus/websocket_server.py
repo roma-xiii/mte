@@ -17,9 +17,9 @@ from nautilus_trader.config import BacktestEngineConfig, LoggingConfig
 from nautilus_trader.model.enums import AccountType, OmsType
 from nautilus_trader.model.identifiers import Venue
 from nautilus_trader.model.objects import Money
+from data_loader import list_available_instruments, load_bars
 
-from data_loader import list_available_instruments, load_bars, generate_synthetic_bars
-from data_downloader import download_ohlcv
+from data_downloader import download_ohlcv, download_last_n_bars
 from strategies import discover_strategies, get_strategy_cls
 
 set_logging_pyo3(True)
@@ -34,7 +34,7 @@ class RunnerConfig:
     strategy_name: str = "sma_crossover"
     strategy_params: dict = field(default_factory=dict)
     synthetic: bool = False
-    synthetic_bars: int = 10000
+    synthetic_bars: int = 0
     speed: float = 0.0
     starting_balance: float = 1_000_000
     account_type: str = "margin"
@@ -147,28 +147,8 @@ class BacktestRunner:
         self.emit({"type": "log", "level": level, "message": message, "timestamp": time.time()})
 
     def load_data(self) -> bool:
-        available = list_available_instruments(self.config.data_dir)
-
-        csv_path = Path(self.config.data_dir) / f"{self.config.instrument}-{self.config.timeframe}.csv"
-        if not self.config.synthetic and self.config.csv_file is None and not csv_path.exists():
-            self.log("info", f"Downloading {self.config.instrument} ({self.config.timeframe}) from {self.config.exchange}...")
-            try:
-                download_ohlcv(
-                    exchange_name=self.config.exchange,
-                    symbol=self.config.instrument,
-                    timeframe=self.config.timeframe,
-                    date_from=self.config.date_from,
-                    date_to=self.config.date_to,
-                    data_dir=self.config.data_dir,
-                )
-                self.log("info", f"Saved to {self.config.instrument}-{self.config.timeframe}.csv")
-                available = list_available_instruments(self.config.data_dir)
-            except Exception as e:
-                self.emit({"type": "error", "message": f"Download failed: {e}"})
-                self.log("error", f"Download failed: {e}")
-                return False
-
         if self.config.csv_file:
+            available = list_available_instruments(self.config.data_dir)
             match = [x for x in available if x["file"] == self.config.csv_file]
             if not match:
                 self.emit({"type": "error", "message": f"File {self.config.csv_file} not found"})
@@ -178,22 +158,50 @@ class BacktestRunner:
             self.instrument, self.bar_type, self.bars = load_bars(
                 self.config.data_dir, match[0]["instrument"], match[0]["timeframe"],
             )
-        elif available and not self.config.synthetic:
-            match = [x for x in available if x["instrument"] == self.config.instrument]
-            if not match:
-                self.emit({"type": "error", "message": f"Instrument {self.config.instrument} not found"})
+        elif self.config.synthetic_bars > 0:
+            self.log("info", f"Downloading last {self.config.synthetic_bars} bars of {self.config.instrument} ({self.config.timeframe}) from {self.config.exchange}...")
+            try:
+                download_last_n_bars(
+                    exchange_name=self.config.exchange,
+                    symbol=self.config.instrument,
+                    timeframe=self.config.timeframe,
+                    n=self.config.synthetic_bars,
+                    data_dir=self.config.data_dir,
+                )
+                available = list_available_instruments(self.config.data_dir)
+                match = [x for x in available if x["instrument"] == self.config.instrument]
+                if not match:
+                    raise Exception("Download completed but file not found")
+                self.instrument, self.bar_type, self.bars = load_bars(
+                    self.config.data_dir, match[0]["instrument"], match[0]["timeframe"],
+                )
+            except Exception as e:
+                self.emit({"type": "error", "message": f"Download failed: {e}"})
+                self.log("error", f"Download failed: {e}")
                 return False
-            self.log("info", f"Loading data for {self.config.instrument} ({self.config.timeframe})")
-            self.instrument, self.bar_type, self.bars = load_bars(
-                self.config.data_dir, self.config.instrument, self.config.timeframe,
-            )
+            self.log("info", f"Loaded {len(self.bars)} bars")
         else:
-            self.log("info", f"Generating {self.config.synthetic_bars} synthetic bars")
-            self.instrument, self.bar_type, self.bars = generate_synthetic_bars(
-                n=self.config.synthetic_bars,
-                instrument_id_str=f"{self.config.instrument[:3]}/{self.config.instrument[3:]}",
-                timeframe=self.config.timeframe,
-            )
+            self.log("info", f"Downloading {self.config.instrument} ({self.config.timeframe}) by date range from {self.config.exchange}...")
+            try:
+                download_ohlcv(
+                    exchange_name=self.config.exchange,
+                    symbol=self.config.instrument,
+                    timeframe=self.config.timeframe,
+                    date_from=self.config.date_from,
+                    date_to=self.config.date_to,
+                    data_dir=self.config.data_dir,
+                )
+                available = list_available_instruments(self.config.data_dir)
+                match = [x for x in available if x["instrument"] == self.config.instrument]
+                if not match:
+                    raise Exception("Download completed but file not found")
+                self.instrument, self.bar_type, self.bars = load_bars(
+                    self.config.data_dir, match[0]["instrument"], match[0]["timeframe"],
+                )
+            except Exception as e:
+                self.emit({"type": "error", "message": f"Download failed: {e}"})
+                self.log("error", f"Download failed: {e}")
+                return False
 
         self.total_bars = len(self.bars)
         return True
@@ -217,10 +225,14 @@ class BacktestRunner:
 
     def setup_strategy(self):
         config_cls, strategy_cls = get_strategy_cls(self.config.strategy_name)
+        params = self.config.strategy_params.copy()
+        # Convert float trade_size to Decimal for Nautilus config
+        if "trade_size" in params:
+            params["trade_size"] = Decimal(str(params["trade_size"]))
         strategy_config = config_cls(
             instrument_id=self.instrument.id,
             bar_type=self.bar_type,
-            **self.config.strategy_params,
+            **params,
         )
         self.strategy = strategy_cls(strategy_config)
         self.engine.add_strategy(self.strategy)
@@ -258,18 +270,38 @@ class BacktestRunner:
                 pass
 
         for pos in self.engine.cache.positions():
+            pos_id = pos.id
+            pos_id_str = str(pos_id)
             if not pos.is_closed:
+                if pos_id_str not in self.closed_positions:
+                    self.closed_positions.add(pos_id_str)
+                    event: dict = {
+                        "type": "position_opened",
+                        "id": pos_id_str,
+                        "side": str(pos.side),
+                        "instrument_id": str(pos.instrument_id),
+                        "quantity": _to_float(pos.quantity),
+                        "entry_price": _to_float(pos.avg_px_open),
+                        "timestamp": str(pos.ts_opened),
+                    }
+                    orders = self.engine.cache.orders_for_position(pos_id)
+                    for o in orders:
+                        if hasattr(o, 'is_stop_order') and o.is_stop_order:
+                            event["sl_price"] = _to_float(o.trigger_price)
+                        elif hasattr(o, 'is_limit_order') and o.is_limit_order and o.side != pos.side:
+                            event["tp_price"] = _to_float(o.price)
+                    self.emit(event)
                 self.emit({
                     "type": "position",
-                    "id": str(pos.id),
+                    "id": pos_id_str,
                     "side": str(pos.side),
                     "instrument_id": str(pos.instrument_id),
                     "quantity": _to_float(pos.quantity),
                     "entry": _to_float(pos.avg_px_open),
                     "unrealized_pnl": _to_float(pos.unrealized_pnl(bar.close)),
                 })
-            elif str(pos.id) not in self.closed_positions:
-                self.closed_positions.add(str(pos.id))
+            elif pos_id_str not in self.closed_positions:
+                self.closed_positions.add(pos_id_str)
                 pnl = _to_float(pos.realized_pnl)
                 entry_px = _to_float(pos.avg_px_open)
                 exit_px = _to_float(pos.avg_px_close)
@@ -278,7 +310,7 @@ class BacktestRunner:
                            "size": _to_float(pos.quantity), "timestamp": str(pos.ts_opened)})
                 self.emit({"type": "exit", "side": str(pos.side), "price": exit_px,
                            "pnl": pnl, "timestamp": str(pos.ts_closed)})
-                self.emit({"type": "trade", "id": str(pos.id), "side": str(pos.side),
+                self.emit({"type": "trade", "id": pos_id_str, "side": str(pos.side),
                            "instrument_id": str(pos.instrument_id), "quantity": _to_float(pos.quantity),
                            "entry_price": entry_px, "exit_price": exit_px, "pnl": pnl,
                            "entry_time": str(pos.ts_opened), "exit_time": str(pos.ts_closed)})
@@ -357,6 +389,11 @@ class BacktestRunner:
             self.emit({"type": "error", "message": str(e)})
             self.log("error", f"Backtest error: {e}")
             self.engine.dispose()
+        finally:
+            with _session_lock:
+                global _current_session
+                if _current_session is not None and _current_session.engine_thread is threading.current_thread():
+                    _current_session = None
 
 
 async def send_strategies_list(socket: WebSocket):
@@ -410,12 +447,19 @@ async def handle_command(cmd: dict, socket: WebSocket, ws_state: dict | None = N
 
             _current_session = session
 
-    elif action in ("pause", "resume", "next", "speed", "stop"):
+    elif action == "stop":
+        with _session_lock:
+            if _current_session is not None:
+                if _current_session.engine_thread is None or not _current_session.engine_thread.is_alive():
+                    _current_session = None
+                else:
+                    _current_session.stop_flag.set()
+                    _current_session.cmd_queue.put_nowait(cmd)
+
+    elif action in ("pause", "resume", "next", "speed"):
         with _session_lock:
             if _current_session is not None:
                 _current_session.cmd_queue.put_nowait(cmd)
-                if action == "stop":
-                    _current_session.stop_flag.set()
 
     elif action == "list_data":
         await send_data_list(socket)

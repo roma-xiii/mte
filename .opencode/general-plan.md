@@ -314,3 +314,52 @@ Tauri выступает как bridge: фронтенд общается с н�
 | `client-tauri/src/apps/backtest/backtest.app.tsx` | Переписать — setup UI + real-time control + chart + log + trades |
 | `client-tauri/src/apps/backtest/main.tsx` | Обновить — routing if needed |
 | `client-tauri/src/components/` | Создать — BacktestSetup, BacktestChart, BacktestLog, BacktestTrades, DataManager, StrategyParamsForm |
+
+---
+
+## Remaining: доработка стратегии и визуализация
+
+### A. Data config flow (сейчас хардкод, надо поднять стейт)
+
+**Проблема**: `DataSourcePanel` собирает exchange/symbol/timeframe/barCount/dateFrom/dateTo, но `BacktestSetup` передаёт `onConfigChange={() => {}}` — данные никуда не идут. `handleStart` в `StrategyPanel` хардкодит `synthetic:true, synthetic_bars:2000, timeframe:'1m'`.
+
+**Фикс**:
+- `BacktestSetup` держит стейт конфига (dataSource, exchange, symbol, timeframe, dateFrom, dateTo, barCount, csvFile)
+- `DataSourcePanel` получает `value + onChange` вместо изолированного стейта
+- `handleStart` собирает все поля из этого стейта, а не из констант
+- В Python `BacktestRunner.load_data()` использует переданный `timeframe` и `instrument`
+
+**Файлы**: `backtest-setup.tsx`, `data-source-panel.tsx`, `strategy-panel.tsx`, `websocket_server.py`
+
+### B. Фикс сделок (стратегия не открывает позиции)
+
+**Проблемы**:
+1. `trade_size: 100000.0` (float) с фронта → `SMACrossConfig.trade_size: Decimal` — msgspec может не сконвертить
+2. Синтетические данные — random walk без тренда, SMA crosses редки
+3. Нет эмиссии промежуточных событий (order submitted, position opened) — сложно дебажить
+
+**Фикс**:
+- Python-сервер конвертит float → Decimal в `setup_strategy()`
+- `generate_synthetic_bars` добавить трендовую компоненту (дрифт), чтобы SMA crosses случались гарантированно
+- Эмитить `{type:"order_submitted"}`, `{type:"position_opened"}` для прозрачности
+
+**Файлы**: `websocket_server.py`, `data_loader.py`
+
+### C. TP/SL поддержка
+
+**Что нужно**:
+- `tp_percent`, `sl_percent` параметры в `config_schema()` стратегии
+- `enter_long`/`enter_short` создаёт bracket order (entry + TP/SL лимитники) через Nautilus `order_factory.bracket_market` / `bracket_limit`
+- Python эмитит `{type:"tp_sl", position_id, tp_price, sl_price}` при открытии позиции
+- Frontend: `chart.addLineSeries()` для TP (зелёная) и SL (красная), удаляются при close position
+
+**Файлы**: `sma_crossover.py`, `websocket_server.py`, `chart.tsx`, `types.ts`
+
+### D. Позиции на графике
+
+**Что нужно**:
+- Линия entry price для открытой позиции (пунктирная, жёлтая)
+- Текст unrealized PnL рядом
+- Удаляется при закрытии позиции
+
+**Файлы**: `chart.tsx`, `running-screen.tsx`, `types.ts`

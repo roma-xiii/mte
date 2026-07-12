@@ -1,9 +1,11 @@
-import { Group, Stack, Slider, Button, Text, Progress } from '@mantine/core';
+import { Group, Stack, Slider, Button, Text, Progress, Alert } from '@mantine/core';
+import { IconAlertCircle } from '@tabler/icons-react';
 
 interface ControlsPanelProps {
   status: string;
   progress: { current: number; total: number; pct: number } | null;
   speed: number;
+  errorMessage: string | null;
   onSpeedChange: (_v: number) => void;
   onPause: () => void;
   onResume: () => void;
@@ -15,6 +17,7 @@ export function ControlsPanel({
   status,
   progress,
   speed,
+  errorMessage,
   onSpeedChange,
   onPause,
   onResume,
@@ -24,6 +27,7 @@ export function ControlsPanel({
   const isRunning = status === 'running';
   const isPaused = status === 'paused';
   const isComplete = status === 'complete';
+  const isError = status === 'error';
   const isActive = isRunning || isPaused;
 
   return (
@@ -47,8 +51,14 @@ export function ControlsPanel({
         ]}
       />
 
+      {isError && errorMessage && (
+        <Alert icon={<IconAlertCircle size={16} />} color="red" title="Error">
+          {errorMessage}
+        </Alert>
+      )}
+
       <Group grow>
-        {isComplete ? (
+        {isComplete || isError ? (
           <Button onClick={onReset} variant="light" color="blue">
             New Backtest
           </Button>
