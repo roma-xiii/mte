@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tsconfigPaths from 'vite-tsconfig-paths';
@@ -14,7 +15,7 @@ export default defineConfig(async () => ({
     eslint({
       eslintOptions: {
         cache: false,           // Отключить кэш для dev режима
-        fix: true,              // Автоматически исправлять ошибки
+        fix: false,             // Диагностика без автоматической записи исправлений
       }
     })
   ],
@@ -38,6 +39,18 @@ export default defineConfig(async () => ({
     watch: {
       // 3. tell Vite to ignore watching `src-tauri`
       ignored: ["**/src-tauri/**"],
+    },
+  },
+  // Multi-page build: entrypoints are the HTML files opened by Rust via WebviewUrl::App
+  build: {
+    rollupOptions: {
+      input: {
+        home: resolve(import.meta.dirname, "html/home.html"),
+        backtest: resolve(import.meta.dirname, "html/backtest.html"),
+        "api-keys": resolve(import.meta.dirname, "html/api-keys.html"),
+        chart: resolve(import.meta.dirname, "html/chart.html"),
+        positions: resolve(import.meta.dirname, "html/positions.html"),
+      },
     },
   },
 }));
