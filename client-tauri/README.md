@@ -1,10 +1,9 @@
-# Tauri + React + Typescript
+# MTE desktop-клиент (Tauri + React + TypeScript)
 
-This template should help get you started developing with Tauri, React and Typescript in Vite.
+Десктопные окна тестера: Home, Backtest, Chart, Positions, ApiKeys. Многостраничная сборка Vite; Python-бэкенд запускается отдельно.
 
-## Recommended IDE Setup
-```
-npm run tauri dev
-```
+Установка и запуск — см. [INSTRUCTIONS.md](../INSTRUCTIONS.md) в корне репозитория. Кратко: `npm ci`, затем `npm run tauri dev`.
 
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+`npm run dev` (только Vite в браузере) не заменяет desktop: браузер не предоставляет Tauri API, поэтому соединение с Python и команды работают только в окне `npm run tauri dev`.
+
+Проверки: `npm run build` (tsc + vite build) и `cargo check --offline` из `src-tauri/` (требует уже скачанных Rust-зависимостей).
