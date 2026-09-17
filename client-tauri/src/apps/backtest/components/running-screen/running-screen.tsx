@@ -13,6 +13,7 @@ import type {
 } from '../../types';
 
 interface RunningScreenProps {
+  connected: boolean;
   bars: BarEvent[];
   entries: EntryEvent[];
   logs: LogEvent[];
@@ -37,6 +38,7 @@ const DEFAULT_RIGHT_WIDTH = 340;
 
 export function RunningScreen(props: RunningScreenProps) {
   const {
+    connected,
     bars,
     entries,
     logs,
@@ -145,6 +147,7 @@ export function RunningScreen(props: RunningScreenProps) {
           </Text>
 
           <ControlsPanel
+            connected={connected}
             status={status}
             progress={progress}
             speed={speed}

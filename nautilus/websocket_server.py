@@ -28,7 +28,7 @@ set_logging_pyo3(True)
 @dataclass
 class RunnerConfig:
     exchange: str = "sim"
-    instrument: str = "EURUSD"
+    instrument: str = "BTCUSDT"
     timeframe: str = "1m"
     data_dir: str = "data"
     strategy_name: str = "sma_crossover"

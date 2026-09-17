@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Container, Loader, Center, Title } from '@mantine/core';
+import { Alert, Badge, Container, Group, Loader, Center, Stack, Text, Title } from '@mantine/core';
 import { useBacktestStore } from './hooks/useBacktestStore';
 import { BacktestSetup } from './components/backtest-setup/backtest-setup';
 import { RunningScreen } from './components/running-screen/running-screen';
@@ -12,21 +12,14 @@ export function BacktestApp() {
   const [starting, setStarting] = useState(false);
 
   useEffect(() => {
-    let unlisten: (() => void) | undefined;
     let cancelled = false;
-    (async () => {
-      try {
-        unlisten = await initListener();
-        await actions.listStrategies();
-        await actions.listData();
-      } catch (e) {
-        console.error('Failed to initialize backtest bridge', e);
-      }
+    const subscription = initListener();
+    void subscription.ready.then(() => {
       if (!cancelled) setInitialized(true);
-    })();
+    });
     return () => {
       cancelled = true;
-      unlisten?.();
+      subscription.dispose();
     };
   }, [initListener]);
 
@@ -35,13 +28,9 @@ export function BacktestApp() {
       setStarting(true);
       try {
         await actions.start(config);
-      } catch (e) {
-        console.error('Failed to start backtest', e);
-        actions.reset();
+      } finally {
         setStarting(false);
-        return;
       }
-      setStarting(false);
     },
     [actions]
   );
@@ -52,11 +41,13 @@ export function BacktestApp() {
 
   const handleDeleteData = useCallback(
     async (filename: string) => {
-      await actions.deleteData(filename);
-      await actions.listData();
+      if (await actions.deleteData(filename)) await actions.listData();
     },
     [actions]
   );
+
+  const connected = store.connection.status === 'connected';
+  const catalogsLoaded = store.strategiesLoaded && store.dataLoaded;
 
   const showSetup = store.status === 'idle';
   const showRunning = store.status !== 'idle';
@@ -70,7 +61,41 @@ export function BacktestApp() {
   }
 
   return (
-    <>
+    <Stack gap="sm">
+      <Group justify="space-between">
+        <Badge color={connected ? 'green' : 'yellow'}>
+          {connected
+            ? 'Python подключён'
+            : store.connection.status === 'connecting'
+              ? 'Подключение к Python…'
+              : 'Нет подключения к Python'}
+        </Badge>
+        {connected && !catalogsLoaded && <Text size="sm">Загрузка стратегий и данных…</Text>}
+      </Group>
+      {!connected && (
+        <Alert color="yellow" title="Сервер тестера недоступен">
+          Запустите Python-сервер командой make run в каталоге nautilus. Подключение восстановится
+          автоматически.
+          {store.connection.error && (
+            <Text size="xs" mt="xs">
+              {store.connection.error}
+            </Text>
+          )}
+        </Alert>
+      )}
+      {store.commandError && (
+        <Alert
+          color="red"
+          title="Не удалось выполнить действие"
+          withCloseButton
+          onClose={actions.dismissError}
+        >
+          {store.commandError}
+        </Alert>
+      )}
+      {connected && store.strategiesLoaded && store.strategies.length === 0 && (
+        <Alert color="yellow">Сервер не вернул доступных стратегий. Проверьте журнал Python.</Alert>
+      )}
       {showSetup && (
         <Container size="xl" py="lg">
           <Title order={2} mb="lg">
@@ -80,6 +105,7 @@ export function BacktestApp() {
             strategies={store.strategies}
             dataFiles={store.dataFiles}
             loading={starting}
+            disabled={!connected || !catalogsLoaded}
             onStart={handleStart}
             onOpenDataManager={() => setDataModalOpened(true)}
           />
@@ -88,6 +114,7 @@ export function BacktestApp() {
 
       {showRunning && (
         <RunningScreen
+          connected={connected}
           bars={store.bars}
           entries={store.entries}
           logs={store.logs}
@@ -108,12 +135,13 @@ export function BacktestApp() {
       )}
 
       <DataManagerModal
+        connected={connected}
         opened={dataModalOpened}
         onClose={() => setDataModalOpened(false)}
         dataFiles={store.dataFiles}
         onDelete={handleDeleteData}
         onRefresh={actions.listData}
       />
-    </>
+    </Stack>
   );
 }

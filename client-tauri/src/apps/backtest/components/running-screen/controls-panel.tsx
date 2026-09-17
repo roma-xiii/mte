@@ -2,6 +2,7 @@ import { Group, Stack, Slider, Button, Text, Progress, Alert } from '@mantine/co
 import { IconAlertCircle } from '@tabler/icons-react';
 
 interface ControlsPanelProps {
+  connected: boolean;
   status: string;
   progress: { current: number; total: number; pct: number } | null;
   speed: number;
@@ -14,6 +15,7 @@ interface ControlsPanelProps {
 }
 
 export function ControlsPanel({
+  connected,
   status,
   progress,
   speed,
@@ -41,7 +43,7 @@ export function ControlsPanel({
         step={1}
         value={speed}
         onChange={onSpeedChange}
-        disabled={!isActive}
+        disabled={!isActive || !connected}
         marks={[
           { value: 1, label: '1' },
           { value: 25, label: '25' },
@@ -63,16 +65,16 @@ export function ControlsPanel({
             New Backtest
           </Button>
         ) : isRunning ? (
-          <Button onClick={onPause} variant="light">
+          <Button disabled={!connected} onClick={onPause} variant="light">
             Pause
           </Button>
         ) : isPaused ? (
-          <Button onClick={onResume} variant="light" color="green">
+          <Button disabled={!connected} onClick={onResume} variant="light" color="green">
             Resume
           </Button>
         ) : null}
         {isActive && (
-          <Button onClick={onStop} color="red" variant="light">
+          <Button disabled={!connected} onClick={onStop} color="red" variant="light">
             Stop
           </Button>
         )}

@@ -56,6 +56,17 @@ export default [
     },
   },
   {
+    files: ['**/*.{ts,tsx}'],
+    rules: {
+      // The JavaScript rule treats parameter names in TypeScript types as variables.
+      'no-unused-vars': 'off',
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
+    },
+  },
+  {
     ignores: ['dist', 'node_modules', 'src-tauri'],
   },
 ];

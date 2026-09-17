@@ -6,6 +6,7 @@ interface StrategyPanelProps {
   strategies: StrategySchema[];
   onStart: (_config: Record<string, unknown>) => void;
   loading: boolean;
+  disabled: boolean;
 }
 
 function ParamInput({
@@ -75,7 +76,7 @@ function ParamInput({
   }
 }
 
-export function StrategyPanel({ strategies, onStart, loading }: StrategyPanelProps) {
+export function StrategyPanel({ strategies, onStart, loading, disabled }: StrategyPanelProps) {
   const [selectedStrategy, setSelectedStrategy] = useState<string | null>(null);
   const [params, setParams] = useState<Record<string, unknown>>({});
   const [startBalance, setStartBalance] = useState(1_000_000);
@@ -85,7 +86,10 @@ export function StrategyPanel({ strategies, onStart, loading }: StrategyPanelPro
   const currentSchema = strategies.find((s) => s.name === selectedStrategy);
 
   useEffect(() => {
-    if (strategies.length > 0 && !selectedStrategy) {
+    if (
+      strategies.length > 0 &&
+      !strategies.some((strategy) => strategy.name === selectedStrategy)
+    ) {
       setSelectedStrategy(strategies[0].name);
     }
   }, [strategies, selectedStrategy]);
@@ -101,6 +105,7 @@ export function StrategyPanel({ strategies, onStart, loading }: StrategyPanelPro
   }, [currentSchema]);
 
   const handleStart = () => {
+    if (disabled || !currentSchema) return;
     onStart({
       strategy_name: selectedStrategy,
       strategy_params: params,
@@ -162,7 +167,14 @@ export function StrategyPanel({ strategies, onStart, loading }: StrategyPanelPro
         max={100}
       />
 
-      <Button fullWidth size="lg" onClick={handleStart} loading={loading} mt="md">
+      <Button
+        fullWidth
+        size="lg"
+        onClick={handleStart}
+        loading={loading}
+        disabled={disabled || !currentSchema}
+        mt="md"
+      >
         Start Backtest
       </Button>
     </Stack>

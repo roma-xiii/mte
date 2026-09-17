@@ -167,10 +167,4 @@ export interface DataConfig {
   csvFile: string | null;
 }
 
-export type BacktestStatus =
-  | 'idle'
-  | 'starting'
-  | 'running'
-  | 'paused'
-  | 'complete'
-  | 'error';
+export type BacktestStatus = 'idle' | 'starting' | 'running' | 'paused' | 'complete' | 'error';

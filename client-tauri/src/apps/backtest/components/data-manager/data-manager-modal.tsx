@@ -3,6 +3,7 @@ import { IconTrash } from '@tabler/icons-react';
 import type { DataFileInfo } from '../../types';
 
 interface DataManagerModalProps {
+  connected: boolean;
   opened: boolean;
   onClose: () => void;
   dataFiles: DataFileInfo[];
@@ -11,6 +12,7 @@ interface DataManagerModalProps {
 }
 
 export function DataManagerModal({
+  connected,
   opened,
   onClose,
   dataFiles,
@@ -24,7 +26,7 @@ export function DataManagerModal({
           <Text size="sm" c="dimmed">
             {dataFiles.length} file{dataFiles.length !== 1 ? 's' : ''} available
           </Text>
-          <Button variant="light" size="xs" onClick={onRefresh}>
+          <Button variant="light" size="xs" disabled={!connected} onClick={onRefresh}>
             Refresh
           </Button>
         </Group>
@@ -66,7 +68,12 @@ export function DataManagerModal({
                   </Table.Td>
                   <Table.Td>
                     <Tooltip label="Delete file">
-                      <ActionIcon color="red" variant="subtle" onClick={() => onDelete(f.file)}>
+                      <ActionIcon
+                        disabled={!connected}
+                        color="red"
+                        variant="subtle"
+                        onClick={() => onDelete(f.file)}
+                      >
                         <IconTrash size={16} />
                       </ActionIcon>
                     </Tooltip>

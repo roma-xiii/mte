@@ -16,7 +16,7 @@ from nautilus_trader.test_kit.providers import TestInstrumentProvider
 from sma_crossover import SMACross, SMACrossConfig
 
 
-EURUSD = TestInstrumentProvider.default_fx_ccy("EUR/USD")
+BTCUSDT = TestInstrumentProvider.default_fx_ccy("BTC/USDT")
 
 rng = np.random.default_rng(42)
 n = 10_000
@@ -36,7 +36,7 @@ bars_df["high"] = bars_df[["open", "high", "close"]].max(axis=1)
 bars_df["low"] = bars_df[["open", "low", "close"]].min(axis=1)
 
 bar_type = BarType.from_str("EUR/USD.SIM-1-MINUTE-LAST-EXTERNAL")
-bars = BarDataWrangler(bar_type, EURUSD).process(bars_df)
+bars = BarDataWrangler(bar_type, BTCUSDT).process(bars_df)
 
 engine = BacktestEngine(
     config=BacktestEngineConfig(
@@ -54,12 +54,12 @@ engine.add_venue(
     default_leverage=Decimal(1),
 )
 
-engine.add_instrument(EURUSD)
+engine.add_instrument(BTCUSDT)
 engine.add_data(bars)
 
 strategy = SMACross(
     SMACrossConfig(
-        instrument_id=EURUSD.id,
+        instrument_id=BTCUSDT.id,
         bar_type=bar_type,
         trade_size=Decimal(100000),
         fast_sma_period=10,

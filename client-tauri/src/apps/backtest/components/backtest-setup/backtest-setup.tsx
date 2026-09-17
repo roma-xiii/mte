@@ -8,6 +8,7 @@ interface BacktestSetupProps {
   strategies: StrategySchema[];
   dataFiles: DataFileInfo[];
   loading: boolean;
+  disabled: boolean;
   onStart: (_config: Record<string, unknown>) => void;
   onOpenDataManager: () => void;
 }
@@ -15,7 +16,7 @@ interface BacktestSetupProps {
 const DEFAULT_DATA_CONFIG: DataConfig = {
   mode: 'live',
   exchange: 'bybit',
-  instrument: 'EURUSD',
+  instrument: 'BTCUSDT',
   timeframe: '1m',
   dateMode: 'bars',
   dateFrom: '',
@@ -28,6 +29,7 @@ export function BacktestSetup({
   strategies,
   dataFiles,
   loading,
+  disabled,
   onStart,
   onOpenDataManager,
 }: BacktestSetupProps) {
@@ -66,7 +68,12 @@ export function BacktestSetup({
         dataFiles={dataFiles}
         onOpenDataManager={onOpenDataManager}
       />
-      <StrategyPanel strategies={strategies} onStart={handleStart} loading={loading} />
+      <StrategyPanel
+        strategies={strategies}
+        onStart={handleStart}
+        loading={loading}
+        disabled={disabled}
+      />
     </Group>
   );
 }

@@ -45,7 +45,7 @@ export function DataSourcePanel({
           />
           <TextInput
             label="Symbol"
-            placeholder="EURUSD"
+            placeholder="BTCUSDT"
             value={value.instrument}
             onChange={(e) => onChange({ ...value, instrument: e.currentTarget.value })}
           />
