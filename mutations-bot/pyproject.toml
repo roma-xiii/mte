@@ -1,0 +1,28 @@
+[project]
+name = "mutations-bot"
+version = "0.1.0"
+description = "Monorepo: strategies, exchanges, Litestar tester & worker apps"
+requires-python = ">=3.11"
+readme = "README.md"
+
+[tool.uv.workspace]
+members = ["packages/*", "apps/*"]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.9",
+    "pytest>=8",
+]
+
+# Pylance/Pyright: локальные пакеты без src-layout
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
+extraPaths = [
+    "packages/core",
+    "packages/exchanges",
+    "packages/strategies",
+    "packages/trading_controls",
+    "apps/tester",
+    "apps/worker",
+]

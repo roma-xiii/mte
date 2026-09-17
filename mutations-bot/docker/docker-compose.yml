@@ -1,0 +1,5 @@
+services:
+  mutations_bot:
+    container_name: mutations_bot
+    image: cr.selcloud.ru/mutations-bot/mutations_bot:0.0.1
+    env_file: .env

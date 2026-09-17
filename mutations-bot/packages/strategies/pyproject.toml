@@ -1,0 +1,20 @@
+[project]
+name = "strategies"
+version = "0.1.0"
+description = "Trading strategies"
+requires-python = ">=3.11"
+dependencies = [
+    "core",
+    "trading_controls",
+]
+
+[tool.uv.sources]
+core = { workspace = true }
+trading_controls = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build]
+include = ["strategies.py"]
