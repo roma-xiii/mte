@@ -138,6 +138,7 @@ class BacktestRunner:
         self.bar_index = 0
         self.total_bars = 0
         self.closed_positions: set = set()
+        self.seen_positions: set = set()
         self.current_speed = config.speed
 
     def emit(self, event: dict):
@@ -168,12 +169,8 @@ class BacktestRunner:
                     n=self.config.synthetic_bars,
                     data_dir=self.config.data_dir,
                 )
-                available = list_available_instruments(self.config.data_dir)
-                match = [x for x in available if x["instrument"] == self.config.instrument]
-                if not match:
-                    raise Exception("Download completed but file not found")
                 self.instrument, self.bar_type, self.bars = load_bars(
-                    self.config.data_dir, match[0]["instrument"], match[0]["timeframe"],
+                    self.config.data_dir, self.config.instrument, self.config.timeframe,
                 )
             except Exception as e:
                 self.emit({"type": "error", "message": f"Download failed: {e}"})
@@ -191,12 +188,8 @@ class BacktestRunner:
                     date_to=self.config.date_to,
                     data_dir=self.config.data_dir,
                 )
-                available = list_available_instruments(self.config.data_dir)
-                match = [x for x in available if x["instrument"] == self.config.instrument]
-                if not match:
-                    raise Exception("Download completed but file not found")
                 self.instrument, self.bar_type, self.bars = load_bars(
-                    self.config.data_dir, match[0]["instrument"], match[0]["timeframe"],
+                    self.config.data_dir, self.config.instrument, self.config.timeframe,
                 )
             except Exception as e:
                 self.emit({"type": "error", "message": f"Download failed: {e}"})
@@ -272,25 +265,42 @@ class BacktestRunner:
         for pos in self.engine.cache.positions():
             pos_id = pos.id
             pos_id_str = str(pos_id)
+            pos_just_opened = pos_id_str not in self.seen_positions
+            pos_just_closed = pos.is_closed and pos_id_str not in self.closed_positions
+
+            if pos_just_opened:
+                self.seen_positions.add(pos_id_str)
+                event: dict = {
+                    "type": "position_opened",
+                    "id": pos_id_str,
+                    "side": str(pos.side),
+                    "instrument_id": str(pos.instrument_id),
+                    "quantity": _to_float(pos.quantity),
+                    "entry_price": _to_float(pos.avg_px_open),
+                    "timestamp": str(pos.ts_opened),
+                }
+                orders = self.engine.cache.orders_for_position(pos_id)
+                for o in orders:
+                    if hasattr(o, 'is_stop_order') and o.is_stop_order:
+                        event["sl_price"] = _to_float(o.trigger_price)
+                    elif hasattr(o, 'is_limit_order') and o.is_limit_order and o.side != pos.side:
+                        event["tp_price"] = _to_float(o.price)
+                self.emit(event)
+                self.emit({"type": "entry", "side": str(pos.side), "price": _to_float(pos.avg_px_open),
+                           "size": _to_float(pos.quantity), "timestamp": str(pos.ts_opened)})
+
+            if pos_just_closed:
+                self.closed_positions.add(pos_id_str)
+                pnl = _to_float(pos.realized_pnl)
+                exit_px = _to_float(pos.avg_px_close)
+                self.emit({"type": "exit", "side": str(pos.side), "price": exit_px,
+                           "pnl": pnl, "timestamp": str(pos.ts_closed)})
+                self.emit({"type": "trade", "id": pos_id_str, "side": str(pos.side),
+                           "instrument_id": str(pos.instrument_id), "quantity": _to_float(pos.quantity),
+                           "entry_price": _to_float(pos.avg_px_open), "exit_price": exit_px, "pnl": pnl,
+                           "entry_time": str(pos.ts_opened), "exit_time": str(pos.ts_closed)})
+
             if not pos.is_closed:
-                if pos_id_str not in self.closed_positions:
-                    self.closed_positions.add(pos_id_str)
-                    event: dict = {
-                        "type": "position_opened",
-                        "id": pos_id_str,
-                        "side": str(pos.side),
-                        "instrument_id": str(pos.instrument_id),
-                        "quantity": _to_float(pos.quantity),
-                        "entry_price": _to_float(pos.avg_px_open),
-                        "timestamp": str(pos.ts_opened),
-                    }
-                    orders = self.engine.cache.orders_for_position(pos_id)
-                    for o in orders:
-                        if hasattr(o, 'is_stop_order') and o.is_stop_order:
-                            event["sl_price"] = _to_float(o.trigger_price)
-                        elif hasattr(o, 'is_limit_order') and o.is_limit_order and o.side != pos.side:
-                            event["tp_price"] = _to_float(o.price)
-                    self.emit(event)
                 self.emit({
                     "type": "position",
                     "id": pos_id_str,
@@ -300,20 +310,6 @@ class BacktestRunner:
                     "entry": _to_float(pos.avg_px_open),
                     "unrealized_pnl": _to_float(pos.unrealized_pnl(bar.close)),
                 })
-            elif pos_id_str not in self.closed_positions:
-                self.closed_positions.add(pos_id_str)
-                pnl = _to_float(pos.realized_pnl)
-                entry_px = _to_float(pos.avg_px_open)
-                exit_px = _to_float(pos.avg_px_close)
-
-                self.emit({"type": "entry", "side": str(pos.side), "price": entry_px,
-                           "size": _to_float(pos.quantity), "timestamp": str(pos.ts_opened)})
-                self.emit({"type": "exit", "side": str(pos.side), "price": exit_px,
-                           "pnl": pnl, "timestamp": str(pos.ts_closed)})
-                self.emit({"type": "trade", "id": pos_id_str, "side": str(pos.side),
-                           "instrument_id": str(pos.instrument_id), "quantity": _to_float(pos.quantity),
-                           "entry_price": entry_px, "exit_price": exit_px, "pnl": pnl,
-                           "entry_time": str(pos.ts_opened), "exit_time": str(pos.ts_closed)})
 
     def run(self):
         if not self.load_data():
