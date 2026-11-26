@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Select, NumberInput, TextInput, Switch, Stack, Button, Text } from '@mantine/core';
+import { Select, NumberInput, TextInput, Switch, Stack, Group, Button, Text } from '@mantine/core';
 import type { StrategySchema, StrategyParam } from '../../types';
 
 interface StrategyPanelProps {
@@ -7,6 +7,7 @@ interface StrategyPanelProps {
   onStart: (_config: Record<string, unknown>) => void;
   loading: boolean;
   disabled: boolean;
+  onBack: () => void;
 }
 
 function ParamInput({
@@ -76,7 +77,7 @@ function ParamInput({
   }
 }
 
-export function StrategyPanel({ strategies, onStart, loading, disabled }: StrategyPanelProps) {
+export function StrategyPanel({ strategies, onStart, loading, disabled, onBack }: StrategyPanelProps) {
   const [selectedStrategy, setSelectedStrategy] = useState<string | null>(null);
   const [params, setParams] = useState<Record<string, unknown>>({});
   const [startBalance, setStartBalance] = useState(1_000_000);
@@ -167,16 +168,19 @@ export function StrategyPanel({ strategies, onStart, loading, disabled }: Strate
         max={100}
       />
 
-      <Button
-        fullWidth
-        size="lg"
-        onClick={handleStart}
-        loading={loading}
-        disabled={disabled || !currentSchema}
-        mt="md"
-      >
-        Start Backtest
-      </Button>
+      <Group grow mt="md">
+        <Button variant="default" size="lg" onClick={onBack}>
+          Back
+        </Button>
+        <Button
+          size="lg"
+          onClick={handleStart}
+          loading={loading}
+          disabled={disabled || !currentSchema}
+        >
+          Start Backtest
+        </Button>
+      </Group>
     </Stack>
   );
 }

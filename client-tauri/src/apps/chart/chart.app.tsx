@@ -1,5 +1,18 @@
-import { Title } from '@mantine/core';
+import { Group } from '@mantine/core';
 
-export const ChartApp = () => {
-  return <Title order={1}>Chart</Title>;
-};
+import { chartIntervalList } from './chart.api';
+import { ChartPanel } from './chart.panel';
+
+export const ChartApp = () => (
+  <Group
+    grow
+    wrap="nowrap"
+    align="stretch"
+    h="calc(100vh - var(--mantine-spacing-md) * 2)"
+    gap="md"
+  >
+    {chartIntervalList.map((chartInterval) => (
+      <ChartPanel key={chartInterval} chartInterval={chartInterval} />
+    ))}
+  </Group>
+);

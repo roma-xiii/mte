@@ -6,6 +6,7 @@ interface DataSourcePanelProps {
   onChange: (_next: DataConfig) => void;
   dataFiles: DataFileInfo[];
   onOpenDataManager: () => void;
+  onNext: () => void;
 }
 
 const EXCHANGES = ['bybit', 'binance'];
@@ -16,6 +17,7 @@ export function DataSourcePanel({
   onChange,
   dataFiles,
   onOpenDataManager,
+  onNext,
 }: DataSourcePanelProps) {
   const csvOptions = dataFiles.map((f) => ({
     value: f.file,
@@ -111,6 +113,10 @@ export function DataSourcePanel({
           )}
         </Stack>
       )}
+
+      <Button fullWidth size="lg" onClick={onNext} mt="md">
+        Next
+      </Button>
     </Stack>
   );
 }

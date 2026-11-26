@@ -9,3 +9,7 @@ dependencies = [
     "ccxt>=4",
     "websockets>=16.1",
 ]
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"

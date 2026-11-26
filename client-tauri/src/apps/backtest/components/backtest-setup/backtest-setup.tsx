@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Group } from '@mantine/core';
+import { Stepper, Stack } from '@mantine/core';
 import { DataSourcePanel } from './data-source-panel';
 import { StrategyPanel } from './strategy-panel';
 import type { StrategySchema, DataFileInfo, DataConfig } from '../../types';
@@ -33,6 +33,7 @@ export function BacktestSetup({
   onStart,
   onOpenDataManager,
 }: BacktestSetupProps) {
+  const [activeStep, setActiveStep] = useState(0);
   const [dataConfig, setDataConfig] = useState<DataConfig>(DEFAULT_DATA_CONFIG);
 
   const handleStart = useCallback(
@@ -61,19 +62,27 @@ export function BacktestSetup({
   );
 
   return (
-    <Group align="flex-start" gap="xl" grow>
-      <DataSourcePanel
-        value={dataConfig}
-        onChange={setDataConfig}
-        dataFiles={dataFiles}
-        onOpenDataManager={onOpenDataManager}
-      />
-      <StrategyPanel
-        strategies={strategies}
-        onStart={handleStart}
-        loading={loading}
-        disabled={disabled}
-      />
-    </Group>
+    <Stack gap="md">
+      <Stepper active={activeStep} allowNextStepsSelect={false}>
+        <Stepper.Step label="Data Source">
+          <DataSourcePanel
+            value={dataConfig}
+            onChange={setDataConfig}
+            dataFiles={dataFiles}
+            onOpenDataManager={onOpenDataManager}
+            onNext={() => setActiveStep(1)}
+          />
+        </Stepper.Step>
+        <Stepper.Step label="Strategy">
+          <StrategyPanel
+            strategies={strategies}
+            onStart={handleStart}
+            loading={loading}
+            disabled={disabled}
+            onBack={() => setActiveStep(0)}
+          />
+        </Stepper.Step>
+      </Stepper>
+    </Stack>
   );
 }

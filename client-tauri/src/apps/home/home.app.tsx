@@ -23,6 +23,9 @@ export const HomeApp = () => {
       <Button size="xl" variant="filled" color="teal" onClick={() => invoke('backtest_open')}>
         Backtest
       </Button>
+      <Button size="xl" variant="filled" color="teal" onClick={() => console.log('settings')}>
+        Settings
+      </Button>
     </Stack>
   );
 };
