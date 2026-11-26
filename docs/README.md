@@ -3,6 +3,19 @@
 Точка входа для агента: сначала этот индекс, затем [Project Context](./project.md)
 и только документы функций, которые затрагивает задача.
 
+## Где искать
+
+| Тема | Раздел |
+|---|---|
+| Именование сущностей | [project.md §3](./project.md#3-именование) |
+| Слои Rust: commands / cases / storages / providers | [project.md §4](./project.md#4-архитектура-rust) |
+| ID, Payload, `ApiError`, генерируемые типы | [project.md §5](./project.md#5-идентификаторы-и-публичные-контракты) |
+| SQLite, миграции, транзакции | [project.md §6](./project.md#6-sqlite-и-сохраняемое-состояние) |
+| Слои React, Context, события | [project.md §7](./project.md#7-архитектура-react) |
+| Tauri Events и доставка | [project.md §9](./project.md#9-commands-events-и-жизненный-цикл), [market-stream.md §7.1](./features/market-stream.md#71-контракты-tauri-events) |
+| Логирование и диагностика | [project.md §10](./project.md#10-логирование-и-диагностика) |
+| Тесты, порядок работы над задачей | [project.md §11](./project.md#11-работа-над-задачами-и-проверки) |
+
 ## General
 - [Project Context](./project.md) — общие правила: архитектура Rust и React, именование, ошибки, SQLite, тестирование. Обязателен перед любой задачей.
 
