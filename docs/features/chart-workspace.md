@@ -4,7 +4,7 @@
 
 Chart Workspace управляет набором графиков внутри одного Chart-окна, их расположением, выбранным инструментом и сохраняемыми настройками. Каждое Chart-окно имеет независимое рабочее пространство. Окно выступает контейнером; каждый `Chart` имеет собственные настройки масштаба и таймфрейма.
 
-Документ описывает согласованную архитектуру подсистемы. Общие правила именования, структуры слоёв, ошибок и тестирования задаются `context/project.md`. Управление физическими окнами описано в `context/feature/window.md`; получение исторических и потоковых рыночных данных — в соответствующих контекстах.
+Документ описывает согласованную архитектуру подсистемы. Общие правила именования, структуры слоёв, ошибок и тестирования задаются [project.md](../project.md). Управление физическими окнами описано в [window.md](./window.md); получение исторических и потоковых рыночных данных — в соответствующих контекстах.
 
 ## 2. Границы ответственности
 
@@ -278,7 +278,7 @@ interface ChartWorkspaceWatchlistSelectedSetPayload {
 - `ChartLayoutStorage`: `create(ChartLayout) -> ChartLayout`, `get(WindowId) -> ChartLayout`, `orientation_set(WindowId, ChartLayoutOrientation) -> ChartLayout`, `item_list_set(WindowId, Vec<ChartLayoutItem>) -> ChartLayout`.
 - `ChartWorkspaceStateStorage`: `create(ChartWorkspaceState) -> ChartWorkspaceState`, `get(WindowId) -> ChartWorkspaceState`, `watchlist_selected_set(WindowId, Option<WatchlistId>) -> ChartWorkspaceState`, `instrument_selected_set(WindowId, Option<InstrumentId>) -> ChartWorkspaceState`.
 
-Здесь указаны логические контракты; для операций, объединённых в одну транзакцию, Storage должен принимать транзакционный executor согласно общим правилам `context/project.md`. SQL и преобразование строк остаются в Storage; оркестрация — в Case.
+Здесь указаны логические контракты; для операций, объединённых в одну транзакцию, Storage должен принимать транзакционный executor согласно общим правилам [project.md](../project.md). SQL и преобразование строк остаются в Storage; оркестрация — в Case.
 
 ### 15.5. Проверки и ошибки
 
