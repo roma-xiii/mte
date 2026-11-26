@@ -1,5 +1,8 @@
 # MTE — архитектурный контекст Watchlist
 
+**Область:** списки наблюдения: состав, порядок, метки, котировки, выбранный список для Workspace.  
+**Связанные документы:** [project.md](../project.md), [instrument-catalog.md](./instrument-catalog.md), [market-stream.md](./market-stream.md), [chart-workspace.md](./chart-workspace.md)
+
 ## Содержание
 
 - [1. Назначение и границы](#1-назначение-и-границы)

@@ -1,5 +1,8 @@
 # MTE — архитектурный контекст Market Stream
 
+**Область:** realtime-данные: WebSocket-подписки, доставка событий, переподключение.  
+**Связанные документы:** [project.md](../project.md), [market-history.md](./market-history.md), [chart-workspace.md](./chart-workspace.md), [watchlist.md](./watchlist.md)
+
 ## Содержание
 
 - [1. Назначение](#1-назначение)

@@ -1,5 +1,8 @@
 # MTE — Контекст подсистемы Market History
 
+**Область:** исторические OHLCV-свечи: RAM-кеш, очередь REST-запросов, догрузка и дедупликация.  
+**Связанные документы:** [project.md](../project.md), [market-stream.md](./market-stream.md), [chart-workspace.md](./chart-workspace.md)
+
 ## Содержание
 
 - [1. Назначение](#1-назначение)
